@@ -15,7 +15,7 @@ type Session struct {
 	RecvStream      chan packet.Packet
 	SendStream      chan packet.Packet
 	ServerID        uint64
-	MtuSize         int16
+	MtuSize         uint16
 	ConnectionState byte
 }
 
@@ -54,7 +54,7 @@ func (session *Session) Handle() {
 					fmt.Println("Unexpected packet error from", pk.Address, ":", err)
 					continue
 				}
-				session.MtuSize = int16(mtusize[0])<<8 + int16(mtusize[1])
+				session.MtuSize = binary.BigEndian.Uint16(mtusize)
 				pk := packet.NewPacket(0x06)
 				pk.Buffer.Write(protocol.RaknetMagic)
 				binary.Write(pk, binary.BigEndian, session.ServerID)
