@@ -1,0 +1,121 @@
+package socket
+
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"net"
+	"network/packet"
+	"network/protocol"
+	"network/session"
+	"strconv"
+	"strings"
+)
+
+//Socket struct.
+type Socket struct {
+	ServerConn *net.UDPConn
+	Input      chan packet.Packet
+	Sessions   map[string]*session.Session
+}
+
+//ServerID variable
+var ServerID uint64
+
+//Open opens socket with given port
+func (s *Socket) Open(port int16) (err error) {
+	fmt.Println("Opening socket on 0.0.0.0:", port)
+	s.Input = make(chan packet.Packet, 1024)
+	ServerAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:"+strconv.Itoa(int(port)))
+	if err != nil {
+		return err
+	}
+	s.ServerConn = new(net.UDPConn)
+	s.ServerConn, err = net.ListenUDP("udp", ServerAddr)
+	if err != nil {
+		return err
+	}
+	s.Sessions = make(map[string]*session.Session)
+	return nil
+}
+
+//ProcessRecv receives packet asynchronously and sends packets to sessions.
+func (s *Socket) ProcessRecv() {
+	buffer := make([]byte, 1024*1024*8) //Buffer size 8MB
+	go s.sendPackets()
+	for {
+		if n, addr, err := s.ServerConn.ReadFromUDP(buffer); err == nil {
+			pk := &packet.Packet{bytes.NewBuffer(buffer[1:n]), buffer[0], *addr}
+			if pk.Head == 0x01 {
+				var PingID uint64
+				if err := binary.Read(pk.Buffer, binary.BigEndian, &PingID); err == nil {
+					pk = new(packet.Packet)
+					fmt.Println("PingID", PingID)
+					pk.Address = *addr
+					pk.Buffer = new(bytes.Buffer)
+					pk.Head = 0x1c
+					binary.Write(pk.Buffer, binary.BigEndian, PingID)
+					binary.Write(pk.Buffer, binary.BigEndian, ServerID)
+					binary.Write(pk.Buffer, binary.BigEndian, protocol.RaknetMagic)
+					pk.WriteStr("MCPE;Rockit - using dev build now;34;0.12.1;0;20")
+					s.sendPacket(*pk)
+				} else {
+					fmt.Print("Error while decoding packet:", err)
+				}
+				continue
+			}
+			s.sendToSession(pk)
+		} else {
+			fmt.Println("Error:", err)
+		}
+	}
+
+}
+
+func (s *Socket) sendPacket(pk packet.Packet) {
+	s.ServerConn.WriteToUDP(append([]byte{pk.Head}, pk.Buffer.Bytes()...), &pk.Address)
+}
+
+//ProcessSend gets a packet from Socket.Input channel and sends it
+func (s *Socket) ProcessSend() {
+	for snd := range s.Input {
+		s.sendPacket(snd)
+	}
+}
+
+func (s *Socket) sendToSession(pk *packet.Packet) {
+	s.getSession(pk.Address).RecvStream <- *pk
+}
+
+func (s *Socket) getSession(address net.UDPAddr) *session.Session {
+	addr := address.IP.String() + ":" + strconv.Itoa(address.Port)
+	if sess, ok := s.Sessions[addr]; ok {
+		return sess
+	}
+	fmt.Println("New session:", addr)
+	sess := &session.Session{address, make(chan packet.Packet, 1024), make(chan packet.Packet, 1024), ServerID, 0}
+	s.Sessions[addr] = sess
+	go sess.Handle()
+	return sess
+
+}
+
+func (s *Socket) sendPackets() {
+	for {
+		for addr, sess := range s.Sessions {
+			select {
+			case pk, ok := <-sess.SendStream:
+				if !ok {
+					delete(s.Sessions, addr)
+					continue
+				}
+				address := net.ParseIP(strings.Split(addr, ":")[0])
+				port, _ := strconv.Atoi(strings.Split(addr, ":")[1])
+				pk.Address = net.UDPAddr{address, port, ""}
+				s.Input <- pk
+			default:
+				continue
+			}
+		}
+	}
+}
