@@ -93,7 +93,7 @@ func (s *Socket) getSession(address net.UDPAddr) *session.Session {
 		return sess
 	}
 	fmt.Println("New session:", addr)
-	sess := &session.Session{address, make(chan packet.Packet, 1024), make(chan packet.Packet, 1024), ServerID, 0}
+	sess := &session.Session{address, make(chan packet.Packet, 1024), make(chan packet.Packet, 1024), ServerID, -1, 0}
 	s.Sessions[addr] = sess
 	go sess.Handle()
 	return sess

@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -51,15 +50,17 @@ func (session *Session) Handle() {
 				session.ConnectionState = connecting1
 				fmt.Println(pk.Address, "set state to 1")
 				mtusize := make([]byte, 2)
-				pk.Read(mtusize)
+				if _, err := pk.Read(mtusize); err != nil {
+					fmt.Println("Unexpected packet error from", pk.Address, ":", err)
+					continue
+				}
 				session.MtuSize = int16(mtusize[0])<<8 + int16(mtusize[1])
-				pk := new(packet.Packet)
-				pk.Head = 0x06
-				pk.Buffer = bytes.NewBuffer(protocol.RaknetMagic)
+				pk := packet.NewPacket(0x06)
+				pk.Buffer.Write(protocol.RaknetMagic)
 				binary.Write(pk, binary.BigEndian, session.ServerID)
 				pk.WriteByte(0)
 				binary.Write(pk, binary.BigEndian, mtusize)
-				session.SendStream <- *pk
+				session.SendStream <- pk
 			case session.ConnectionState == connecting1 && pk.Head == 0x07:
 
 			case session.ConnectionState == connecting2:
