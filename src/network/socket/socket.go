@@ -45,7 +45,7 @@ func (s *Socket) ProcessRecv() {
 	go s.sendPackets()
 	for {
 		if n, addr, err := s.ServerConn.ReadFromUDP(buffer); err == nil {
-			pk := &packet.Packet{bytes.NewBuffer(buffer[1:n]), buffer[0], *addr}
+			pk := &packet.Packet{Buffer: bytes.NewBuffer(buffer[1:n]), Head: buffer[0], Address: *addr}
 			if pk.Head == 0x01 {
 				var PingID uint64
 				if err := binary.Read(pk.Buffer, binary.BigEndian, &PingID); err == nil {
@@ -93,7 +93,12 @@ func (s *Socket) getSession(address net.UDPAddr) *session.Session {
 		return sess
 	}
 	fmt.Println("New session:", addr)
-	sess := &session.Session{address, make(chan packet.Packet, 1024), make(chan packet.Packet, 1024), ServerID, -1, 0}
+	sess := &session.Session{
+		Address:    address,
+		RecvStream: make(chan packet.Packet, 1024),
+		SendStream: make(chan packet.Packet, 1024),
+		ServerID:   ServerID,
+	}
 	s.Sessions[addr] = sess
 	go sess.Handle()
 	return sess
@@ -111,7 +116,7 @@ func (s *Socket) sendPackets() {
 				}
 				address := net.ParseIP(strings.Split(addr, ":")[0])
 				port, _ := strconv.Atoi(strings.Split(addr, ":")[1])
-				pk.Address = net.UDPAddr{address, port, ""}
+				pk.Address = net.UDPAddr{IP: address, Port: port, Zone: ""}
 				s.Input <- pk
 			default:
 				continue
