@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 )
 
@@ -16,7 +15,7 @@ func ReadLTriad(buf *bytes.Buffer) (n int32, err error) {
 		err = fmt.Errorf("ReadLTriad: 3 bytes needed, %d given", len(b))
 		return
 	}
-	n = int32(b[0]) + int32(b[2])<<8 + int32(b[3])<<16
+	n = int32(b[0]) + int32(b[1])<<8 + int32(b[2])<<16
 	return
 }
 
@@ -148,21 +147,23 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	}
 	ep.Reliability = (flags & (7 << 5)) >> 5
 	ep.HasSplit = (flags & 16) > 0
+	fmt.Println("Reliability", ep.Reliability, "HasSplit", ep.HasSplit)
 	length := make([]byte, 2)
-	*offset = 3
 	var n int
 	if n, err = ep.Read(length); n < 2 || err != nil {
 		return
 	}
+	*offset += 2
 	if ep.Reliability > 0 {
-		switch {
-		case ep.Reliability >= 2 && ep.Reliability != 5:
+		if ep.Reliability >= 2 && ep.Reliability != 5 {
+			fmt.Println("MessageIndex exists")
 			if ep.MessageIndex, err = ReadLTriad(ep.Buffer); err != nil {
 				return
 			}
 			*offset += 3
-			fallthrough
-		case ep.Reliability <= 4 && ep.Reliability != 2:
+		}
+		if ep.Reliability <= 4 && ep.Reliability != 2 {
+			fmt.Println("OrderData exists")
 			if ep.OrderIndex, err = ReadLTriad(ep.Buffer); err != nil {
 				return
 			}
@@ -187,14 +188,68 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		}
 	}
 	buf := make([]byte, binary.BigEndian.Uint16(length))
-	if n, err = ep.Read(buf); n < int(binary.BigEndian.Uint16(length)) || err != nil {
-		if err != nil {
-			return
-		}
-		return pk, io.EOF
+	if _, err = ep.Read(buf); err != nil {
+		return
 	}
 	*offset += int(binary.BigEndian.Uint16(length))
+	fmt.Println(buf)
 	pk.Buffer = bytes.NewBuffer(buf[1:])
 	pk.Head = buf[0]
 	return
+}
+
+//Serializable specifies how to encode/decode packets to/from raw buffer.
+type Serializable interface {
+	Encode() error
+	Decode() error
+}
+
+//DataPacket will be used to process MCPE data packets, containing encapsulated packets.
+//Buffer is separated from packet header. Should be appended manually.
+type DataPacket struct {
+	*bytes.Buffer
+	SeqNumber           int32
+	Head                byte
+	EncapsulatedPackets []EncapsulatedPacket
+	Packets             []Packet
+}
+
+//NewDataPacket returns 'copied' data packet from given normal packet.
+func NewDataPacket(pk Packet) (dp DataPacket, err error) {
+	dp.Buffer = bytes.NewBuffer(pk.Bytes())
+	dp.Head = pk.Head
+	err = dp.Decode()
+	return
+}
+
+//Encode encodes Packets slice and SeqNumber to raw buffer
+func (dp *DataPacket) Encode() error {
+	PutLTriad(dp.SeqNumber, dp.Buffer)
+	for _, pk := range dp.Packets {
+		dp.Write(pk.Buffer.Bytes())
+	}
+	return nil
+}
+
+//Decode decodes raw buffer to Packets slice and SeqNumber
+func (dp *DataPacket) Decode() (err error) {
+	offset := 0
+	if dp.SeqNumber, err = ReadLTriad(dp.Buffer); err != nil {
+		return
+	}
+	offset += 3
+	for offset < len(dp.Bytes()) {
+		off := 0
+		ep := new(EncapsulatedPacket)
+		ep.Buffer = bytes.NewBuffer(dp.Bytes()[offset-3:])
+		var pk Packet
+		if pk, err = ep.Decapsulate(&off); err != nil {
+			fmt.Println("Offset", off)
+			return
+		}
+		dp.Packets = append(dp.Packets, pk)
+		dp.EncapsulatedPackets = append(dp.EncapsulatedPackets, *ep)
+		offset += off
+	}
+	return nil
 }

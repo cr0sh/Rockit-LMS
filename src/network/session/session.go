@@ -47,7 +47,13 @@ func (session *Session) Handle() {
 
 func (session *Session) handlePacket(pk packet.Packet) bool {
 	if pk.Head >= 0x80 && pk.Head < 0x90 {
-		session.handleDataPacket(pk)
+		var dp packet.DataPacket
+		var err error
+		if dp, err = packet.NewDataPacket(pk); err != nil {
+			fmt.Println("Error while decoding data packet:", err)
+			return true
+		}
+		return session.handleDataPacket(dp)
 	}
 	switch {
 	case pk.Head == 0x05:
@@ -94,7 +100,13 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		fmt.Println("set state to 2")
 		return true
 	case session.connectionState == connecting2 || session.connectionState == connected:
-		return session.handleDataPacket(pk)
+		var dp packet.DataPacket
+		var err error
+		if dp, err = packet.NewDataPacket(pk); err != nil {
+			fmt.Println("Error while decoding data packet:", err)
+			return true
+		}
+		return session.handleDataPacket(dp)
 	}
 	return false
 }
@@ -103,8 +115,7 @@ func (session *Session) asyncProcess() { //TODO
 
 }
 
-func (session *Session) handleDataPacket(pk packet.Packet) bool {
-
+func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	return false
 }
 
