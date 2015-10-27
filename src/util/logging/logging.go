@@ -14,7 +14,7 @@ func log(str string, level int) {
 	}
 	t := time.Now()
 	hour, min, sec := t.Clock()
-	fmt.Printf("[%d:%d:%d] %s\n", hour, min, sec, str)
+	fmt.Printf("[%02d:%02d:%02d] %s\n", hour, min, sec, str)
 }
 
 //Debug prints DEBUG-level log
