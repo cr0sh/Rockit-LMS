@@ -235,7 +235,8 @@ func NewDataPacket(pk Packet) (dp DataPacket, err error) {
 }
 
 //Encode encodes Packets slice and SeqNumber to raw buffer
-func (dp *DataPacket) Encode() error {
+func (dp *DataPacket) Encode(head byte) error {
+	dp.Buffer.WriteByte(head)
 	PutLTriad(dp.SeqNumber, dp.Buffer)
 	for _, pk := range dp.Packets {
 		dp.Write(pk.Buffer.Bytes())
