@@ -8,6 +8,8 @@ import (
 	"net"
 	"network/packet"
 	"network/protocol"
+	"strconv"
+	"util/logging"
 )
 
 //Session struct contains packet channels for packet I/O, connection state, and source address.
@@ -59,18 +61,18 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	case pk.Head == 0x05:
 		pk.Next(16) //Magic
 		if len(pk.Buffer.Bytes()) < 18 {
-			fmt.Println("Packet error from", pk.Address, "(buffer too short)")
+			logging.Error("Error while processing pacekt parse: buffer too short")
 			return true
 		} else if proto, err := pk.ReadByte(); err == nil && int(proto) != protocol.RaknetProtocol {
-			fmt.Println("Raknet protocol mismatch:", pk.Buffer.Bytes()[16], "!=", protocol.RaknetProtocol)
+			logging.Error("Raknet protocol mismatch: " + strconv.Itoa(int(pk.Buffer.Bytes()[16])) + " != " + strconv.Itoa(protocol.RaknetProtocol))
 			return true
 		} else if err != nil {
-			fmt.Println("Unexpected packet error from ", pk.Address, ":", err)
+			logging.FromError(err, 0)
 			return true
 		}
 		mtusize := make([]byte, 2)
 		if _, err := pk.Read(mtusize); err != nil {
-			fmt.Println("Unexpected packet error from", session.Address, ":", err)
+			logging.FromError(err, 0)
 			return true
 		}
 		session.mtuSize = uint16(math.Min(float64(binary.BigEndian.Uint16(mtusize)+18), 1464))
@@ -86,7 +88,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	case pk.Head == 0x07:
 		pk.Next(16) //Magic
 		if _, err := packet.ReadAddress(pk.Buffer); err != nil {
-			fmt.Println("Unexpected packet error from", session.Address, ":", err)
+			logging.FromError(err, 0)
 			fmt.Print(hex.EncodeToString([]byte{pk.Head}), "\n"+hex.Dump(append([]byte{pk.Head}, pk.Buffer.Bytes()...)))
 			return true
 		}
@@ -97,13 +99,13 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		binary.Write(pk.Buffer, binary.BigEndian, session.mtuSize)
 		session.SendStream <- pk
 		session.connectionState = connecting2
-		fmt.Println("set state to 2")
+		logging.Debug("set state to 2")
 		return true
 	case session.connectionState == connecting2 || session.connectionState == connected:
 		var dp packet.DataPacket
 		var err error
 		if dp, err = packet.NewDataPacket(pk); err != nil {
-			fmt.Println("Error while decoding data packet:", err)
+			logging.FromError(err, 0)
 			return true
 		}
 		return session.handleDataPacket(dp)
