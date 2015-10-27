@@ -50,7 +50,6 @@ func (s *Socket) ProcessRecv() {
 				var PingID uint64
 				if err := binary.Read(pk.Buffer, binary.BigEndian, &PingID); err == nil {
 					pk = new(packet.Packet)
-					fmt.Println("PingID", PingID)
 					pk.Address = *addr
 					pk.Buffer = new(bytes.Buffer)
 					pk.Head = 0x1c

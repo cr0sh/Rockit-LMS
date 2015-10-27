@@ -3,10 +3,22 @@ package packet
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
 )
+
+//Error is a implementation of error from packets.
+type Error struct {
+	buffer   *bytes.Buffer
+	ErrorStr string
+}
+
+//Error implements error interface
+func (err Error) Error() string {
+	return "Packet error(head 0x" + hex.EncodeToString([]byte{err.buffer.Bytes()[0]}) + "): " + err.ErrorStr + "\n" + hex.Dump(err.buffer.Bytes())
+}
 
 //ReadLTriad gets 3-byte LE Triad from buffer
 func ReadLTriad(buf *bytes.Buffer) (n int32, err error) {
@@ -143,7 +155,7 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	*offset = 1
 	var flags byte
 	if flags, err = ep.ReadByte(); err != nil {
-		return
+		return pk, errors.New("Error while reading flags: " + err.Error())
 	}
 	ep.Reliability = (flags & (7 << 5)) >> 5
 	ep.HasSplit = (flags & 16) > 0
@@ -151,45 +163,45 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	length := make([]byte, 2)
 	var n int
 	if n, err = ep.Read(length); n < 2 || err != nil {
-		return
+		return pk, errors.New(err.Error())
 	}
 	*offset += 2
 	if ep.Reliability > 0 {
 		if ep.Reliability >= 2 && ep.Reliability != 5 {
 			fmt.Println("MessageIndex exists")
 			if ep.MessageIndex, err = ReadLTriad(ep.Buffer); err != nil {
-				return
+				return pk, errors.New("Error while reading MessageIndex: " + err.Error())
 			}
 			*offset += 3
 		}
 		if ep.Reliability <= 4 && ep.Reliability != 2 {
 			fmt.Println("OrderData exists")
 			if ep.OrderIndex, err = ReadLTriad(ep.Buffer); err != nil {
-				return
+				return pk, errors.New("Error while reading OrderIndex: " + err.Error())
 			}
 			*offset += 3
 			if ep.OrderChannel, err = ep.ReadByte(); err != nil {
-				return
+				return pk, errors.New("Error while reading OrderChannel: " + err.Error())
 			}
 			*offset++
 		}
 	}
 	if ep.HasSplit {
 		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitCount); err != nil {
-			return
+			return pk, errors.New("Error while reading SplitCount" + err.Error())
 		}
 		*offset += 4
 		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitID); err != nil {
-			return
+			return pk, errors.New("Error while reading SplitID: " + err.Error())
 		}
 		*offset += 2
 		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitIndex); err != nil {
-			return
+			return pk, errors.New("Error while reading SplitIndex: " + err.Error())
 		}
 	}
 	buf := make([]byte, binary.BigEndian.Uint16(length))
 	if _, err = ep.Read(buf); err != nil {
-		return
+		return pk, errors.New("Error while reading encapsulated buffer: " + err.Error())
 	}
 	*offset += int(binary.BigEndian.Uint16(length))
 	fmt.Println(buf)
@@ -235,7 +247,7 @@ func (dp *DataPacket) Encode() error {
 func (dp *DataPacket) Decode() (err error) {
 	offset := 0
 	if dp.SeqNumber, err = ReadLTriad(dp.Buffer); err != nil {
-		return
+		return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 	}
 	offset += 3
 	for offset < len(dp.Bytes()) {
@@ -245,7 +257,7 @@ func (dp *DataPacket) Decode() (err error) {
 		var pk Packet
 		if pk, err = ep.Decapsulate(&off); err != nil {
 			fmt.Println("Offset", off)
-			return
+			return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 		}
 		dp.Packets = append(dp.Packets, pk)
 		dp.EncapsulatedPackets = append(dp.EncapsulatedPackets, *ep)
