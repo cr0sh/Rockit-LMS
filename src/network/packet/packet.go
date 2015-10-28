@@ -20,6 +20,11 @@ func (err Error) Error() string {
 	return "Packet error(head 0x" + hex.EncodeToString([]byte{err.buffer.Bytes()[0]}) + "): " + err.ErrorStr + "\n" + hex.Dump(err.buffer.Bytes())
 }
 
+//NewError creates new packet error struct
+func NewError(buf *bytes.Buffer, err error) Error {
+	return Error{buffer: buf, ErrorStr: err.Error()}
+}
+
 //ReadLTriad gets 3-byte LE Triad from buffer
 func ReadLTriad(buf *bytes.Buffer) (n int32, err error) {
 	b := buf.Next(3)
@@ -40,9 +45,11 @@ func PutLTriad(i int32, buf *bytes.Buffer) (err error) {
 //PutAddress writes IP version, Address, Port from given net.UDPAddr struct to buffer. `version` is reserved for future IPv6 implementation.
 func PutAddress(addr net.UDPAddr, buf *bytes.Buffer, version int) error {
 	buf.WriteByte(4) // IPv4
-	for _, v := range addr.IP {
-		buf.WriteByte(v ^ 0xff)
+	for i := 0; i < 4; i++ {
+		fmt.Print(addr.IP.To4()[i], " ")
+		buf.WriteByte(addr.IP.To4()[i] ^ 0xff)
 	}
+	fmt.Println("")
 	binary.Write(buf, binary.BigEndian, uint16(addr.Port))
 	return nil
 }
@@ -120,11 +127,11 @@ type EncapsulatedPacket struct {
 //Write a packet to encapsulate, and options, and run this to get encapsulated packet buffer.
 func (ep *EncapsulatedPacket) Encapsulate(p Packet) error {
 	ep.Buffer = new(bytes.Buffer)
-	flags := ep.Reliability << 5
+	flags := byte(ep.Reliability << 5)
 	if ep.HasSplit {
 		flags |= 1 << 4
 	}
-	ep.Write([]byte{flags})
+	ep.WriteByte(flags)
 	if len(p.GetBytes()) >= 65536/8 {
 		return fmt.Errorf("EncapsulatedPacket length field overflow")
 	}
@@ -204,7 +211,6 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		return pk, errors.New("Error while reading encapsulated buffer: " + err.Error())
 	}
 	*offset += int(binary.BigEndian.Uint16(length))
-	fmt.Println(buf)
 	pk.Buffer = bytes.NewBuffer(buf[1:])
 	pk.Head = buf[0]
 	return
@@ -226,7 +232,7 @@ type DataPacket struct {
 	Packets             []Packet
 }
 
-//NewDataPacket returns 'copied' data packet from given normal packet.
+//NewDataPacket returns 'decoded' data packet from given normal packet.
 func NewDataPacket(pk Packet) (dp DataPacket, err error) {
 	dp.Buffer = bytes.NewBuffer(pk.Bytes())
 	dp.Head = pk.Head
@@ -235,13 +241,13 @@ func NewDataPacket(pk Packet) (dp DataPacket, err error) {
 }
 
 //Encode encodes Packets slice and SeqNumber to raw buffer
-func (dp *DataPacket) Encode(head byte) error {
+func (dp *DataPacket) Encode(head byte) Packet {
 	dp.Buffer.WriteByte(head)
 	PutLTriad(dp.SeqNumber, dp.Buffer)
 	for _, pk := range dp.Packets {
 		dp.Write(pk.Buffer.Bytes())
 	}
-	return nil
+	return Packet{Buffer: bytes.NewBuffer(dp.Bytes()[1:]), Head: dp.Bytes()[0], Address: *new(net.UDPAddr)}
 }
 
 //Decode decodes raw buffer to Packets slice and SeqNumber
