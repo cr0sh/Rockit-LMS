@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -20,6 +21,7 @@ type Session struct {
 	ServerID        uint64
 	mtuSize         uint16
 	connectionState byte
+	sendSeqNum      int32
 }
 
 const (
@@ -101,6 +103,10 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		session.connectionState = connecting2
 		logging.Debug("set state to 2")
 		return true
+	case pk.Head == 0xc0: //ACK
+		return true
+	case pk.Head == 0xa0: //NACK
+		return true
 	case session.connectionState == connecting2 || session.connectionState == connected:
 		var dp packet.DataPacket
 		var err error
@@ -118,7 +124,60 @@ func (session *Session) asyncProcess() { //TODO
 }
 
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
-	return false
+	logging.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
+	if dp.SeqNumber > 10000 {
+		logging.Debug("\n" + hex.Dump(append([]byte{dp.Head}, dp.Bytes()...)))
+	}
+	for _, pk := range dp.Packets {
+		session.handleEncapsulatedPacket(pk)
+	}
+	return true
+}
+
+func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
+	logging.Debug("DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
+	switch pk.Head {
+	case 0x09:
+		var cid, sendPing int64
+		if err := binary.Read(pk, binary.BigEndian, &cid); err != nil {
+			logging.Error(packet.NewError(pk.Buffer, err), 0)
+			return
+		}
+		if err := binary.Read(pk, binary.BigEndian, &sendPing); err != nil {
+			logging.Error(packet.NewError(pk.Buffer, err), 0)
+			return
+		}
+		pk = packet.NewPacket(0x10)
+		packet.PutAddress(session.Address, pk.Buffer, 4)
+		pk.Write([]byte{0, 0})
+		if addr, err := net.ResolveUDPAddr("", "127.0.0.1:0"); err == nil {
+			packet.PutAddress(*addr, pk.Buffer, 4)
+		} else {
+			logging.Error(err, 0)
+			return
+		}
+		for i := 0; i < 9; i++ {
+			packet.PutAddress(net.UDPAddr{IP: []byte{0, 0, 0, 0}, Port: 0, Zone: ""}, pk.Buffer, 4)
+		}
+		binary.Write(pk, binary.BigEndian, sendPing)
+		binary.Write(pk, binary.BigEndian, sendPing+1000)
+		ep := *new(packet.EncapsulatedPacket)
+		ep.HasSplit = false
+		ep.Encapsulate(pk)
+		session.sendDataPacket(ep)
+	}
+}
+
+func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
+	dp := *new(packet.DataPacket)
+	dp.Buffer = new(bytes.Buffer)
+	dp.SeqNumber = session.sendSeqNum
+	session.sendSeqNum++
+	if session.sendSeqNum == 1<<6 {
+		session.sendSeqNum = 0
+	}
+	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(pk.Bytes()), Head: 0, Address: *new(net.UDPAddr)}}
+	session.SendStream <- dp.Encode(0x80)
 }
 
 //Close Closes session channels for stopping goroutines
