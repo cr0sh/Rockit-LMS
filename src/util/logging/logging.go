@@ -25,20 +25,20 @@ func Debug(f ...interface{}) {
 
 //Verbose prints INFO-level log
 func Verbose(f ...interface{}) {
-	log(1, "INFO: ", f...)
+	log(1, " INFO: ", f...)
 }
 
 //Warning prints WARN-level log
 func Warning(f ...interface{}) {
-	log(2, "WARN: ", f...)
+	log(2, " WARN: ", f...)
 }
 
 //FromError prints ERROR-level log from error
 func FromError(err error, level int) {
-	log(level, "ERROR:", err.Error())
+	log(level, "***ERROR***:", err.Error())
 }
 
 //Error prints ERROR-level log from given string
 func Error(f ...interface{}) {
-	log(3, "ERROR: ", f...)
+	log(3, "***ERROR***: ", f...)
 }
