@@ -45,11 +45,6 @@ func PutLTriad(i int32, buf *bytes.Buffer) (err error) {
 //PutAddress writes IP version, Address, Port from given net.UDPAddr struct to buffer. `version` is reserved for future IPv6 implementation.
 func PutAddress(addr net.UDPAddr, buf *bytes.Buffer, version int) error {
 	buf.WriteByte(4) // IPv4
-	for i := 0; i < 4; i++ {
-		fmt.Print(addr.IP.To4()[i], " ")
-		buf.WriteByte(addr.IP.To4()[i] ^ 0xff)
-	}
-	fmt.Println("")
 	binary.Write(buf, binary.BigEndian, uint16(addr.Port))
 	return nil
 }
@@ -70,7 +65,7 @@ func ReadAddress(buf *bytes.Buffer) (addr net.UDPAddr, err error) {
 		}
 		addr.IP = addrbuf
 		var port uint16
-		if err = binary.Read(buf, binary.BigEndian, port); err != nil {
+		if err = binary.Read(buf, binary.BigEndian, &port); err != nil {
 			return
 		}
 		addr.Port = int(port)
@@ -159,11 +154,11 @@ func (ep *EncapsulatedPacket) Encapsulate(p Packet) error {
 //Put raw EncapsulatedPacket buffer to struct and run this to get decapsulated packet
 func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	pk = NewPacket(0)
-	*offset = 1
 	var flags byte
 	if flags, err = ep.ReadByte(); err != nil {
 		return pk, errors.New("Error while reading flags: " + err.Error())
 	}
+	*offset = 1
 	ep.Reliability = (flags & (7 << 5)) >> 5
 	ep.HasSplit = (flags & 16) > 0
 	fmt.Println("Reliability", ep.Reliability, "HasSplit", ep.HasSplit)
@@ -194,15 +189,15 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		}
 	}
 	if ep.HasSplit {
-		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitCount); err != nil {
+		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitCount); err != nil {
 			return pk, errors.New("Error while reading SplitCount" + err.Error())
 		}
 		*offset += 4
-		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitID); err != nil {
+		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitID); err != nil {
 			return pk, errors.New("Error while reading SplitID: " + err.Error())
 		}
 		*offset += 2
-		if err = binary.Read(ep.Buffer, binary.BigEndian, ep.SplitIndex); err != nil {
+		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitIndex); err != nil {
 			return pk, errors.New("Error while reading SplitIndex: " + err.Error())
 		}
 	}
@@ -211,17 +206,11 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		return pk, errors.New("Error while reading encapsulated buffer: " + err.Error())
 	}
 	*offset += int(binary.BigEndian.Uint16(length))
-	pk.Buffer = bytes.NewBuffer(buf[1:])
+	if binary.BigEndian.Uint16(length) > 1 {
+		pk.Buffer = bytes.NewBuffer(buf[1:])
+	}
 	pk.Head = buf[0]
 	return
-}
-
-//UnreadAll will set buffer offset to 0
-func (ep *EncapsulatedPacket) UnreadAll() {
-	var err error
-	for err == nil {
-		err = ep.UnreadByte()
-	}
 }
 
 //Serializable specifies how to encode/decode packets to/from raw buffer.
