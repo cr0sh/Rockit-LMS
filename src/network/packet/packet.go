@@ -216,6 +216,14 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	return
 }
 
+//UnreadAll will set buffer offset to 0
+func (ep *EncapsulatedPacket) UnreadAll() {
+	var err error
+	for err == nil {
+		err = ep.UnreadByte()
+	}
+}
+
 //Serializable specifies how to encode/decode packets to/from raw buffer.
 type Serializable interface {
 	Encode() error

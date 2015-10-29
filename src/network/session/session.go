@@ -22,6 +22,7 @@ type Session struct {
 	mtuSize         uint16
 	connectionState byte
 	sendSeqNum      int32
+	channelIndex    [32]int32
 }
 
 const (
@@ -128,14 +129,19 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	if dp.SeqNumber > 10000 {
 		logging.Debug("\n" + hex.Dump(append([]byte{dp.Head}, dp.Bytes()...)))
 	}
-	for _, pk := range dp.Packets {
-		session.handleEncapsulatedPacket(pk)
+	for i, pk := range dp.Packets {
+		if dp.EncapsulatedPackets[i].HasSplit {
+			dp.EncapsulatedPackets[i].UnreadAll()
+			session.handleSplitPacket(dp.EncapsulatedPackets[i])
+		} else {
+			session.handleEncapsulatedPacket(pk)
+		}
 	}
 	return true
 }
 
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
-	logging.Debug("DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
+	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	switch pk.Head {
 	case 0x09:
 		var cid, sendPing int64
@@ -165,7 +171,15 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		ep.HasSplit = false
 		ep.Encapsulate(pk)
 		session.sendDataPacket(ep)
+	case 0x13:
+		if _, err := packet.ReadAddress(pk.Buffer); err == nil {
+			logging.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
+		}
 	}
+}
+
+func (session *Session) handleSplitPacket(pk packet.EncapsulatedPacket) {
+
 }
 
 func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
