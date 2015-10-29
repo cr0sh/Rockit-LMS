@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/rand"
 	"net"
 	"network/packet"
 	"network/protocol"
 	"strconv"
+	"time"
 	"util/logging"
 )
 
@@ -23,6 +25,10 @@ type Session struct {
 	connectionState byte
 	sendSeqNum      int32
 	channelIndex    [32]int32
+	asyncTicker     *time.Ticker
+	splitPackets    map[int16]map[int32][]byte
+	needPong        int64
+	gotPong         bool
 }
 
 const (
@@ -34,6 +40,9 @@ const (
 
 //Handle Handles packets from RecvStream channel
 func (session *Session) Handle() {
+	session.splitPackets = make(map[int16]map[int32][]byte)
+	session.asyncTicker = time.NewTicker(time.Second * 7)
+	go session.asyncProcess()
 	for pk := range session.RecvStream {
 		switch pk.Head {
 		case 0x01: //UNCONNECTED_PING
@@ -51,7 +60,7 @@ func (session *Session) Handle() {
 }
 
 func (session *Session) handlePacket(pk packet.Packet) bool {
-	if pk.Head >= 0x80 && pk.Head < 0x90 {
+	if session.connectionState > 1 && pk.Head >= 0x80 && pk.Head < 0x90 {
 		var dp packet.DataPacket
 		var err error
 		if dp, err = packet.NewDataPacket(pk); err != nil {
@@ -120,19 +129,28 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	return false
 }
 
-func (session *Session) asyncProcess() { //TODO
-
+func (session *Session) asyncProcess() {
+	for range session.asyncTicker.C {
+		session.gotPong = false
+		session.needPong = rand.Int63()
+		pk := packet.NewPacket(0x00)
+		binary.Write(pk, binary.BigEndian, session.needPong)
+		ep := *new(packet.EncapsulatedPacket)
+		ep.Encapsulate(pk)
+		session.sendDataPacket(ep)
+		<-time.NewTimer(time.Second * 5).C // timeout
+		if !session.gotPong {
+			session.Close("Ping timeout")
+		}
+	}
 }
 
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	logging.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
-	if dp.SeqNumber > 10000 {
-		logging.Debug("\n" + hex.Dump(append([]byte{dp.Head}, dp.Bytes()...)))
-	}
 	for i, pk := range dp.Packets {
 		if dp.EncapsulatedPackets[i].HasSplit {
-			dp.EncapsulatedPackets[i].UnreadAll()
-			session.handleSplitPacket(dp.EncapsulatedPackets[i])
+			logging.Debug("handling split")
+			session.handleSplitPacket(dp.EncapsulatedPackets[i], pk)
 		} else {
 			session.handleEncapsulatedPacket(pk)
 		}
@@ -143,6 +161,16 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	switch pk.Head {
+	case 0x00:
+		var pingID int64
+		if err := binary.Read(pk, binary.BigEndian, &pingID); err != nil {
+			return
+		}
+		pk = packet.NewPacket(0x03)
+		binary.Write(pk, binary.BigEndian, pingID)
+		ep := *new(packet.EncapsulatedPacket)
+		ep.Encapsulate(pk)
+		session.sendDataPacket(ep)
 	case 0x09:
 		var cid, sendPing int64
 		if err := binary.Read(pk, binary.BigEndian, &cid); err != nil {
@@ -168,18 +196,43 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		binary.Write(pk, binary.BigEndian, sendPing)
 		binary.Write(pk, binary.BigEndian, sendPing+1000)
 		ep := *new(packet.EncapsulatedPacket)
-		ep.HasSplit = false
 		ep.Encapsulate(pk)
 		session.sendDataPacket(ep)
 	case 0x13:
 		if _, err := packet.ReadAddress(pk.Buffer); err == nil {
 			logging.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
 		}
+	case 0x15:
+		session.Close("client disconnect")
 	}
 }
 
-func (session *Session) handleSplitPacket(pk packet.EncapsulatedPacket) {
-
+func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
+	logging.Debug("SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
+	if _, ok := session.splitPackets[ep.SplitID]; !ok {
+		session.splitPackets[ep.SplitID] = make(map[int32][]byte)
+	}
+	if _, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
+		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
+	}
+	buffer := new(bytes.Buffer)
+	logging.Debug("SC", ep.SplitCount)
+	for i := 0; i < int(ep.SplitCount); i++ {
+		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
+			logging.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
+			break
+		} else {
+			buffer.Write(buf)
+		}
+	}
+	ppk := *new(packet.Packet)
+	var err error
+	if ppk.Head, err = buffer.ReadByte(); err != nil {
+		return
+	}
+	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
+	logging.Debug("Handled split")
+	session.handleEncapsulatedPacket(ppk)
 }
 
 func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
@@ -195,8 +248,14 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 }
 
 //Close Closes session channels for stopping goroutines
-func (session *Session) Close() {
-	//TODO: Implement close packet
+func (session *Session) Close(reason string) {
+	pk := packet.NewPacket(0x15)
+	ep := *new(packet.EncapsulatedPacket)
+	ep.Encapsulate(pk)
+	session.sendDataPacket(ep)
+	time.Sleep(time.Millisecond * 500) //Wait for 0.5 secs
+	logging.Verbose("Session", session.Address.String(), "closed:", reason)
+	session.asyncTicker.Stop()
 	close(session.RecvStream)
 	close(session.SendStream)
 }
