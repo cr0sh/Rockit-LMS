@@ -26,7 +26,7 @@ type Session struct {
 	sendSeqNum      uint32
 	channelIndex    [32]int32
 	asyncTicker     *time.Ticker
-	splitPackets    map[int16]map[int32][]byte
+	splitPackets    map[uint16]map[uint32][]byte
 	needPong        int64
 	gotPong         bool
 }
@@ -40,7 +40,7 @@ const (
 
 //Handle Handles packets from RecvStream channel
 func (session *Session) Handle() {
-	session.splitPackets = make(map[int16]map[int32][]byte)
+	session.splitPackets = make(map[uint16]map[uint32][]byte)
 	session.asyncTicker = time.NewTicker(time.Second * 7)
 	go session.asyncProcess()
 	for pk := range session.RecvStream {
@@ -210,7 +210,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
 	logging.Debug("SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
 	if _, ok := session.splitPackets[ep.SplitID]; !ok {
-		session.splitPackets[ep.SplitID] = make(map[int32][]byte)
+		session.splitPackets[ep.SplitID] = make(map[uint32][]byte)
 	}
 	if _, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
 		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()

@@ -114,7 +114,7 @@ type EncapsulatedPacket struct {
 	OrderIndex   uint32
 	OrderChannel byte
 	SplitCount   uint32
-	SplitID      int16
+	SplitID      uint16
 	SplitIndex   uint32
 	NeedACK      bool
 }
