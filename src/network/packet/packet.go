@@ -175,6 +175,9 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	if flags, err = ep.ReadByte(); err != nil {
 		return pk, errors.New("Error while reading flags: " + err.Error())
 	}
+	if flags%16 != 0 {
+		return pk, errors.New("Flags must be multiple of 16")
+	}
 	*offset = 1
 	ep.Reliability = (flags & (7 << 5)) >> 5
 	ep.HasSplit = (flags & 16) > 0
@@ -214,6 +217,7 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitIndex); err != nil {
 			return pk, errors.New("Error while reading SplitIndex: " + err.Error())
 		}
+		*offset += 4
 	}
 	buf := make([]byte, binary.BigEndian.Uint16(length))
 	if _, err = ep.Read(buf); err != nil {
@@ -223,7 +227,9 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	if binary.BigEndian.Uint16(length) > 1 {
 		pk.Buffer = bytes.NewBuffer(buf[1:])
 	}
-	pk.Head = buf[0]
+	if binary.BigEndian.Uint16(length) != 0 {
+		pk.Head = buf[0]
+	}
 	return
 }
 
@@ -264,14 +270,15 @@ func (dp *DataPacket) Encode(head byte) Packet {
 //Decode decodes raw buffer to Packets slice and SeqNumber.
 func (dp *DataPacket) Decode() (err error) {
 	offset := 0
+	maxlen := len(dp.Bytes())
 	if dp.SeqNumber, err = ReadLTriad(dp.Buffer); err != nil {
 		return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 	}
 	offset += 3
-	for offset < len(dp.Bytes()) {
+	for offset < maxlen {
 		off := 0
 		ep := new(EncapsulatedPacket)
-		ep.Buffer = bytes.NewBuffer(dp.Bytes()[offset-3:])
+		ep.Buffer = bytes.NewBuffer(dp.Bytes())
 		var pk Packet
 		if pk, err = ep.Decapsulate(&off); err != nil {
 			logging.Debug("Offset", off)
@@ -309,7 +316,7 @@ func (a *AcknowledgePacket) Encode() {
 	sort.Sort(a.Packets)
 	payload := new(bytes.Buffer)
 	count := a.Packets.Len()
-	records := 0
+	var records uint16
 	if count > 0 {
 		pointer, start, last := 1, a.Packets[0], a.Packets[0]
 		for pointer < count {
@@ -344,6 +351,9 @@ func (a *AcknowledgePacket) Encode() {
 		}
 		records++
 	}
+	a.Buffer = new(bytes.Buffer)
+	binary.Write(a.Buffer, binary.BigEndian, records)
+	a.Write(payload.Bytes())
 }
 
 //Decode decodes AcknowledgePacket.

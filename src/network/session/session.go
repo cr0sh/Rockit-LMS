@@ -23,12 +23,16 @@ type Session struct {
 	mtuSize         uint16
 	connectionState byte
 	sendSeqNum      uint32
-	channelIndex    [32]int32
+	channelIndex    [32]uint32
 	asyncPingTicker *time.Ticker
+	ackTicker       *time.Ticker
 	splitPackets    map[uint16]map[uint32][]byte
-	needPong        int64
+	needPong        uint64
 	gotPong         bool
 	recoveryQueue   map[uint32]packet.Packet
+	ackQueue        []uint32
+	nackQueue       []uint32
+	closed          bool
 }
 
 const (
@@ -42,9 +46,14 @@ const (
 func (session *Session) Handle() {
 	session.splitPackets = make(map[uint16]map[uint32][]byte)
 	session.asyncPingTicker = time.NewTicker(time.Second * 7)
+	session.ackTicker = time.NewTicker(time.Millisecond * 50)
 	session.recoveryQueue = make(map[uint32]packet.Packet)
 	go session.asyncPing()
+	go session.acknowledgement()
 	for pk := range session.RecvStream {
+		if session.closed {
+			return
+		}
 		switch pk.Head {
 		case 0x01: //UNCONNECTED_PING
 			fallthrough
@@ -118,10 +127,12 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		ack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
 		ack.Decode()
 		logging.Debug("Got ACK:", ack.Packets)
+		return true
 	case pk.Head == 0xa0: //NACK
 		nack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
 		nack.Decode()
 		logging.Debug("Got NACK:", nack.Packets)
+		return true
 	case session.connectionState == connecting2 || session.connectionState == connected:
 		var dp packet.DataPacket
 		var err error
@@ -152,7 +163,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	switch pk.Head {
 	case 0x00:
-		var pingID int64
+		var pingID uint64
 		if err := binary.Read(pk, binary.BigEndian, &pingID); err != nil {
 			return
 		}
@@ -208,6 +219,11 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 
 func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
 	logging.Debug("SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
+	if ep.SplitCount > 1024 {
+		logging.Debug("Oops: invalid packet", hex.Dump(ep.Bytes()))
+		session.Close("Bad client")
+		return
+	}
 	if _, ok := session.splitPackets[ep.SplitID]; !ok {
 		session.splitPackets[ep.SplitID] = make(map[uint32][]byte)
 	}
@@ -251,20 +267,24 @@ func (session *Session) asyncPing() {
 
 func (session *Session) acknowledgement() {
 	for range session.ackTicker.C {
-		ack := *new(packet.AcknowledgePacket)
-		ack.Packets = session.ackQueue
-		ack.Encode()
-		pk := packet.NewPacket(0xc0)
-		*pk.Buffer = *ack.Buffer
-		session.SendStream <- pk
-		session.ackQueue = make([]uint32, 0)
-		nack := *new(packet.AcknowledgePacket)
-		nack.Packets = session.nackQueue
-		nack.Encode()
-		pk = packet.NewPacket(0xa0)
-		*pk.Buffer = *nack.Buffer
-		session.SendStream <- pk
-		session.nackQueue = make([]uint32, 0)
+		if len(session.ackQueue) > 0 {
+			ack := *new(packet.AcknowledgePacket)
+			ack.Packets = session.ackQueue
+			ack.Encode()
+			pk := packet.NewPacket(0xc0)
+			*pk.Buffer = *ack.Buffer
+			session.SendStream <- pk
+			session.ackQueue = make([]uint32, 0)
+		}
+		if len(session.nackQueue) > 0 {
+			nack := *new(packet.AcknowledgePacket)
+			nack.Packets = session.nackQueue
+			nack.Encode()
+			pk := packet.NewPacket(0xa0)
+			*pk.Buffer = *nack.Buffer
+			session.SendStream <- pk
+			session.nackQueue = make([]uint32, 0)
+		}
 	}
 }
 
@@ -281,7 +301,9 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 	if session.sendSeqNum == 1<<6 {
 		session.sendSeqNum = 0
 	}
-	session.SendStream <- rpk
+	if !session.closed {
+		session.SendStream <- rpk
+	}
 }
 
 //Close closes session, related channels, and sends disconnect signal to client.
@@ -290,9 +312,11 @@ func (session *Session) Close(reason string) {
 	ep := *new(packet.EncapsulatedPacket)
 	ep.Encapsulate(pk)
 	session.sendDataPacket(ep)
+	session.closed = true
 	time.Sleep(time.Millisecond * 500) //Wait for 0.5 secs
 	logging.Verbose("Session", session.Address.String(), "closed:", reason)
 	session.asyncPingTicker.Stop()
+	session.ackTicker.Stop()
 	close(session.RecvStream)
 	close(session.SendStream)
 }
