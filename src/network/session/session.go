@@ -23,7 +23,7 @@ type Session struct {
 	ServerID        uint64
 	mtuSize         uint16
 	connectionState byte
-	sendSeqNum      int32
+	sendSeqNum      uint32
 	channelIndex    [32]int32
 	asyncTicker     *time.Ticker
 	splitPackets    map[int16]map[int32][]byte

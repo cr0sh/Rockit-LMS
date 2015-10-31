@@ -26,18 +26,18 @@ func NewError(buf *bytes.Buffer, err error) Error {
 }
 
 //ReadLTriad gets 3-byte LE Triad from buffer
-func ReadLTriad(buf *bytes.Buffer) (n int32, err error) {
+func ReadLTriad(buf *bytes.Buffer) (n uint32, err error) {
 	b := buf.Next(3)
 	if len(b) != 3 {
 		err = fmt.Errorf("ReadLTriad: 3 bytes needed, %d given", len(b))
 		return
 	}
-	n = int32(b[0]) + int32(b[1])<<8 + int32(b[2])<<16
+	n = uint32(b[0]) + uint32(b[1])<<8 + uint32(b[2])<<16
 	return
 }
 
 //PutLTriad writes 3-byte LE Triad to buffer
-func PutLTriad(i int32, buf *bytes.Buffer) (err error) {
+func PutLTriad(i uint32, buf *bytes.Buffer) (err error) {
 	_, err = buf.Write([]byte{byte(i) & 0xff, byte(i >> 8), byte(i >> 16)})
 	return
 }
@@ -110,12 +110,13 @@ type EncapsulatedPacket struct {
 	Reliability  byte
 	HasSplit     bool
 	Length       int16
-	MessageIndex int32
-	OrderIndex   int32
+	MessageIndex uint32
+	OrderIndex   uint32
 	OrderChannel byte
-	SplitCount   int32
+	SplitCount   uint32
 	SplitID      int16
-	SplitIndex   int32
+	SplitIndex   uint32
+	NeedACK      bool
 }
 
 //Encapsulate embeds packet to EncapsulatedPacket struct
@@ -223,7 +224,7 @@ type Serializable interface {
 //Buffer is separated from packet header. Should be appended manually.
 type DataPacket struct {
 	*bytes.Buffer
-	SeqNumber           int32
+	SeqNumber           uint32
 	Head                byte
 	EncapsulatedPackets []EncapsulatedPacket
 	Packets             []Packet
