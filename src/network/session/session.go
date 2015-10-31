@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"math"
 	"math/rand"
 	"net"
@@ -55,7 +54,7 @@ func (session *Session) Handle() {
 			head := pk.Head
 			buf := pk.GetBytes()
 			if !session.handlePacket(pk) {
-				fmt.Print("Unexpected packet header: 0x", hex.EncodeToString([]byte{head}), "\n"+hex.Dump(buf))
+				logging.Debug("Unexpected packet header: 0x", hex.EncodeToString([]byte{head}), "\n"+hex.Dump(buf))
 			}
 		}
 	}
@@ -66,7 +65,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		var dp packet.DataPacket
 		var err error
 		if dp, err = packet.NewDataPacket(pk); err != nil {
-			fmt.Println("Error while decoding data packet:", err)
+			logging.Debug("Error while decoding data packet:", err)
 			return true
 		}
 		return session.handleDataPacket(dp)
@@ -97,13 +96,13 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		binary.Write(pk, binary.BigEndian, mtusize)
 		session.SendStream <- pk
 		session.connectionState = connecting1
-		fmt.Println("set state to 1")
+		logging.Debug("set state to 1")
 		return true
 	case pk.Head == 0x07:
 		pk.Next(16) //Magic
 		if _, err := packet.ReadAddress(pk.Buffer); err != nil {
 			logging.FromError(err, 0)
-			fmt.Print(hex.EncodeToString([]byte{pk.Head}), "\n"+hex.Dump(append([]byte{pk.Head}, pk.Buffer.Bytes()...)))
+			logging.Debug(hex.EncodeToString([]byte{pk.Head}), "\n"+hex.Dump(append([]byte{pk.Head}, pk.Buffer.Bytes()...)))
 			return true
 		}
 		pk = packet.NewPacket(0x08)
@@ -135,28 +134,9 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	return false
 }
 
-func (session *Session) asyncPing() {
-	for range session.asyncPingTicker.C {
-		session.gotPong = false
-		session.needPong = rand.Int63()
-		pk := packet.NewPacket(0x00)
-		binary.Write(pk, binary.BigEndian, session.needPong)
-		ep := *new(packet.EncapsulatedPacket)
-		ep.Encapsulate(pk)
-		session.sendDataPacket(ep)
-		<-session.asyncPingTicker.C
-		if !session.gotPong {
-			session.Close("Ping timeout")
-		}
-	}
-}
-
-func (session *Session) acknowledgement() {
-
-}
-
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	logging.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
+	session.ackQueue = append(session.ackQueue, dp.SeqNumber)
 	for i, pk := range dp.Packets {
 		if dp.EncapsulatedPackets[i].HasSplit {
 			logging.Debug("handling split")
@@ -181,6 +161,15 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		ep := *new(packet.EncapsulatedPacket)
 		ep.Encapsulate(pk)
 		session.sendDataPacket(ep)
+	case 0x03:
+		var pingID uint64
+		if err := binary.Read(pk, binary.BigEndian, &pingID); err != nil {
+			return
+		}
+		if pingID == session.needPong {
+			session.gotPong = true
+			logging.Debug("Got correct pong!")
+		}
 	case 0x09:
 		var cid, sendPing int64
 		if err := binary.Read(pk, binary.BigEndian, &cid); err != nil {
@@ -226,7 +215,6 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
 	}
 	buffer := new(bytes.Buffer)
-	logging.Debug("SC", ep.SplitCount)
 	for i := 0; i < int(ep.SplitCount); i++ {
 		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
 			logging.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
@@ -243,6 +231,41 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
 	logging.Debug("Handled split")
 	session.handleEncapsulatedPacket(ppk)
+}
+
+func (session *Session) asyncPing() {
+	for range session.asyncPingTicker.C {
+		session.gotPong = false
+		session.needPong = uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+		pk := packet.NewPacket(0x00)
+		binary.Write(pk, binary.BigEndian, session.needPong)
+		ep := *new(packet.EncapsulatedPacket)
+		ep.Encapsulate(pk)
+		session.sendDataPacket(ep)
+		<-session.asyncPingTicker.C
+		if !session.gotPong {
+			session.Close("Ping timeout")
+		}
+	}
+}
+
+func (session *Session) acknowledgement() {
+	for range session.ackTicker.C {
+		ack := *new(packet.AcknowledgePacket)
+		ack.Packets = session.ackQueue
+		ack.Encode()
+		pk := packet.NewPacket(0xc0)
+		*pk.Buffer = *ack.Buffer
+		session.SendStream <- pk
+		session.ackQueue = make([]uint32, 0)
+		nack := *new(packet.AcknowledgePacket)
+		nack.Packets = session.nackQueue
+		nack.Encode()
+		pk = packet.NewPacket(0xa0)
+		*pk.Buffer = *nack.Buffer
+		session.SendStream <- pk
+		session.nackQueue = make([]uint32, 0)
+	}
 }
 
 func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {

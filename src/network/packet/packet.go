@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"util/logging"
 )
 
 //Error is a implementation of error from packets.
@@ -177,7 +178,6 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	*offset = 1
 	ep.Reliability = (flags & (7 << 5)) >> 5
 	ep.HasSplit = (flags & 16) > 0
-	fmt.Println("Reliability", ep.Reliability, "HasSplit", ep.HasSplit)
 	length := make([]byte, 2)
 	var n int
 	if n, err = ep.Read(length); n < 2 || err != nil {
@@ -186,14 +186,12 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	*offset += 2
 	if ep.Reliability > 0 {
 		if ep.Reliability >= 2 && ep.Reliability != 5 {
-			fmt.Println("MessageIndex exists")
 			if ep.MessageIndex, err = ReadLTriad(ep.Buffer); err != nil {
 				return pk, errors.New("Error while reading MessageIndex: " + err.Error())
 			}
 			*offset += 3
 		}
 		if ep.Reliability <= 4 && ep.Reliability != 2 {
-			fmt.Println("OrderData exists")
 			if ep.OrderIndex, err = ReadLTriad(ep.Buffer); err != nil {
 				return pk, errors.New("Error while reading OrderIndex: " + err.Error())
 			}
@@ -206,7 +204,7 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	}
 	if ep.HasSplit {
 		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitCount); err != nil {
-			return pk, errors.New("Error while reading SplitCount" + err.Error())
+			return pk, errors.New("Error while reading SplitCount: " + err.Error())
 		}
 		*offset += 4
 		if err = binary.Read(ep.Buffer, binary.BigEndian, &ep.SplitID); err != nil {
@@ -276,7 +274,7 @@ func (dp *DataPacket) Decode() (err error) {
 		ep.Buffer = bytes.NewBuffer(dp.Bytes()[offset-3:])
 		var pk Packet
 		if pk, err = ep.Decapsulate(&off); err != nil {
-			fmt.Println("Offset", off)
+			logging.Debug("Offset", off)
 			return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 		}
 		dp.Packets = append(dp.Packets, pk)
