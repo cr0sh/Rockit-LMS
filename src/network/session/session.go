@@ -25,10 +25,11 @@ type Session struct {
 	connectionState byte
 	sendSeqNum      uint32
 	channelIndex    [32]int32
-	asyncTicker     *time.Ticker
+	asyncPingTicker *time.Ticker
 	splitPackets    map[uint16]map[uint32][]byte
 	needPong        int64
 	gotPong         bool
+	recoveryQueue   map[uint32]packet.Packet
 }
 
 const (
@@ -38,11 +39,12 @@ const (
 	connected   byte = 3
 )
 
-//Handle Handles packets from RecvStream channel
+//Handle is a loop for handling packets from RecvStream channel.
 func (session *Session) Handle() {
 	session.splitPackets = make(map[uint16]map[uint32][]byte)
-	session.asyncTicker = time.NewTicker(time.Second * 7)
-	go session.asyncProcess()
+	session.asyncPingTicker = time.NewTicker(time.Second * 7)
+	session.recoveryQueue = make(map[uint32]packet.Packet)
+	go session.asyncPing()
 	for pk := range session.RecvStream {
 		switch pk.Head {
 		case 0x01: //UNCONNECTED_PING
@@ -114,9 +116,13 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		logging.Debug("set state to 2")
 		return true
 	case pk.Head == 0xc0: //ACK
-		return true
+		ack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
+		ack.Decode()
+		logging.Debug("Got ACK:", ack.Packets)
 	case pk.Head == 0xa0: //NACK
-		return true
+		nack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
+		nack.Decode()
+		logging.Debug("Got NACK:", nack.Packets)
 	case session.connectionState == connecting2 || session.connectionState == connected:
 		var dp packet.DataPacket
 		var err error
@@ -129,8 +135,8 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	return false
 }
 
-func (session *Session) asyncProcess() {
-	for range session.asyncTicker.C {
+func (session *Session) asyncPing() {
+	for range session.asyncPingTicker.C {
 		session.gotPong = false
 		session.needPong = rand.Int63()
 		pk := packet.NewPacket(0x00)
@@ -138,11 +144,15 @@ func (session *Session) asyncProcess() {
 		ep := *new(packet.EncapsulatedPacket)
 		ep.Encapsulate(pk)
 		session.sendDataPacket(ep)
-		<-time.NewTimer(time.Second * 5).C // timeout
+		<-session.asyncPingTicker.C
 		if !session.gotPong {
 			session.Close("Ping timeout")
 		}
 	}
+}
+
+func (session *Session) acknowledgement() {
+
 }
 
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
@@ -239,15 +249,19 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 	dp := *new(packet.DataPacket)
 	dp.Buffer = new(bytes.Buffer)
 	dp.SeqNumber = session.sendSeqNum
+	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(pk.Bytes()), Head: 0, Address: *new(net.UDPAddr)}}
+	rpk := dp.Encode(0x80)
+	if pk.NeedACK {
+		session.recoveryQueue[session.sendSeqNum] = rpk
+	}
 	session.sendSeqNum++
 	if session.sendSeqNum == 1<<6 {
 		session.sendSeqNum = 0
 	}
-	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(pk.Bytes()), Head: 0, Address: *new(net.UDPAddr)}}
-	session.SendStream <- dp.Encode(0x80)
+	session.SendStream <- rpk
 }
 
-//Close Closes session channels for stopping goroutines
+//Close closes session, related channels, and sends disconnect signal to client.
 func (session *Session) Close(reason string) {
 	pk := packet.NewPacket(0x15)
 	ep := *new(packet.EncapsulatedPacket)
@@ -255,7 +269,7 @@ func (session *Session) Close(reason string) {
 	session.sendDataPacket(ep)
 	time.Sleep(time.Millisecond * 500) //Wait for 0.5 secs
 	logging.Verbose("Session", session.Address.String(), "closed:", reason)
-	session.asyncTicker.Stop()
+	session.asyncPingTicker.Stop()
 	close(session.RecvStream)
 	close(session.SendStream)
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 )
 
 //Error is a implementation of error from packets.
@@ -15,17 +16,17 @@ type Error struct {
 	ErrorStr string
 }
 
-//Error implements error interface
+//Error implements error interface.
 func (err Error) Error() string {
 	return "Packet error(head 0x" + hex.EncodeToString([]byte{err.buffer.Bytes()[0]}) + "): " + err.ErrorStr + "\n" + hex.Dump(err.buffer.Bytes())
 }
 
-//NewError creates new packet error struct
+//NewError creates new packet error struct.
 func NewError(buf *bytes.Buffer, err error) Error {
 	return Error{buffer: buf, ErrorStr: err.Error()}
 }
 
-//ReadLTriad gets 3-byte LE Triad from buffer
+//ReadLTriad gets 3-byte LE Triad from buffer.
 func ReadLTriad(buf *bytes.Buffer) (n uint32, err error) {
 	b := buf.Next(3)
 	if len(b) != 3 {
@@ -36,7 +37,7 @@ func ReadLTriad(buf *bytes.Buffer) (n uint32, err error) {
 	return
 }
 
-//PutLTriad writes 3-byte LE Triad to buffer
+//PutLTriad writes 3-byte LE Triad to buffer.
 func PutLTriad(i uint32, buf *bytes.Buffer) (err error) {
 	_, err = buf.Write([]byte{byte(i) & 0xff, byte(i >> 8), byte(i >> 16)})
 	return
@@ -49,7 +50,7 @@ func PutAddress(addr net.UDPAddr, buf *bytes.Buffer, version int) error {
 	return nil
 }
 
-//ReadAddress reads IP version, Address, Port from given buffer
+//ReadAddress reads IP version, Address, Port from given buffer.
 func ReadAddress(buf *bytes.Buffer) (addr net.UDPAddr, err error) {
 	var version byte
 	if version, err = buf.ReadByte(); err != nil {
@@ -82,8 +83,22 @@ type Packet struct {
 	Address net.UDPAddr
 }
 
-//WriteStr converts string to MCPE-handlable bytes Buffer
-func (p *Packet) WriteStr(s string) error {
+//ReadStr reads string from packet.
+func (p *Packet) ReadStr() (s string, err error) {
+	var l uint16
+	if err = binary.Read(p, binary.BigEndian, &l); err != nil {
+		return
+	}
+	buf := make([]byte, l)
+	if _, err = p.Read(buf); err != nil {
+		return
+	}
+	s = string(buf)
+	return
+}
+
+//PutStr converts string to MCPE-handlable bytes Buffer.
+func (p *Packet) PutStr(s string) error {
 	if len(s) > 65535 {
 		return errors.New("String too long")
 	}
@@ -94,12 +109,12 @@ func (p *Packet) WriteStr(s string) error {
 	return err
 }
 
-//GetBytes returns bytes buffer from packet, with header
+//GetBytes returns bytes buffer from packet, with header.
 func (p *Packet) GetBytes() []byte {
 	return append([]byte{p.Head}, p.Buffer.Bytes()...)
 }
 
-//NewPacket returns empty packet with given header
+//NewPacket returns empty packet with given header.
 func NewPacket(head byte) Packet {
 	return Packet{bytes.NewBuffer([]byte{}), head, *new(net.UDPAddr)}
 }
@@ -119,8 +134,8 @@ type EncapsulatedPacket struct {
 	NeedACK      bool
 }
 
-//Encapsulate embeds packet to EncapsulatedPacket struct
-//Write a packet to encapsulate, and options, and run this to get encapsulated packet buffer.
+//Encapsulate embeds packet to EncapsulatedPacket struct.
+//Writes a packet to encapsulate, and options, and run this to get encapsulated packet buffer.
 func (ep *EncapsulatedPacket) Encapsulate(p Packet) error {
 	ep.Buffer = new(bytes.Buffer)
 	flags := byte(ep.Reliability << 5)
@@ -151,8 +166,8 @@ func (ep *EncapsulatedPacket) Encapsulate(p Packet) error {
 	return nil
 }
 
-//Decapsulate extracts packet and gets options from EncapsulatedPacket buffer
-//Put raw EncapsulatedPacket buffer to struct and run this to get decapsulated packet
+//Decapsulate extracts packet and gets options from EncapsulatedPacket buffer.
+//Puts raw EncapsulatedPacket buffer to struct and run this to get decapsulated packet.
 func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	pk = NewPacket(0)
 	var flags byte
@@ -238,7 +253,7 @@ func NewDataPacket(pk Packet) (dp DataPacket, err error) {
 	return
 }
 
-//Encode encodes Packets slice and SeqNumber to raw buffer
+//Encode encodes Packets slice and SeqNumber to raw buffer.
 func (dp *DataPacket) Encode(head byte) Packet {
 	dp.Buffer.WriteByte(head)
 	PutLTriad(dp.SeqNumber, dp.Buffer)
@@ -248,7 +263,7 @@ func (dp *DataPacket) Encode(head byte) Packet {
 	return Packet{Buffer: bytes.NewBuffer(dp.Bytes()[1:]), Head: dp.Bytes()[0], Address: *new(net.UDPAddr)}
 }
 
-//Decode decodes raw buffer to Packets slice and SeqNumber
+//Decode decodes raw buffer to Packets slice and SeqNumber.
 func (dp *DataPacket) Decode() (err error) {
 	offset := 0
 	if dp.SeqNumber, err = ReadLTriad(dp.Buffer); err != nil {
@@ -269,4 +284,106 @@ func (dp *DataPacket) Decode() (err error) {
 		offset += off
 	}
 	return nil
+}
+
+type seqList []uint32
+
+func (s seqList) Len() int {
+	return len(s)
+}
+
+func (s seqList) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+func (s seqList) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+//AcknowledgePacket is a helper struct for encoding/decoding (N)ACK packets.
+type AcknowledgePacket struct {
+	*bytes.Buffer
+	Packets seqList
+}
+
+//Encode encodes AcknowledgePacket.
+func (a *AcknowledgePacket) Encode() {
+	sort.Sort(a.Packets)
+	payload := new(bytes.Buffer)
+	count := a.Packets.Len()
+	records := 0
+	if count > 0 {
+		pointer, start, last := 1, a.Packets[0], a.Packets[0]
+		for pointer < count {
+			current := a.Packets[pointer]
+			pointer++
+			diff := current - last
+			if diff == 1 {
+				last = current
+			} else if diff > 1 {
+				if start == last {
+					payload.WriteByte(0x01)
+					PutLTriad(start, payload)
+					last = current
+					start = last
+				} else {
+					payload.WriteByte(0x00)
+					PutLTriad(start, payload)
+					PutLTriad(start, payload)
+					last = current
+					start = last
+				}
+				records++
+			}
+		}
+		if start == last {
+			payload.WriteByte(0x01)
+			PutLTriad(start, payload)
+		} else {
+			payload.WriteByte(0x00)
+			PutLTriad(start, payload)
+			PutLTriad(start, payload)
+		}
+		records++
+	}
+}
+
+//Decode decodes AcknowledgePacket.
+func (a *AcknowledgePacket) Decode() (err error) {
+	var packetcount uint16
+	if err = binary.Read(a.Buffer, binary.BigEndian, &packetcount); err != nil {
+		return
+	}
+	cnt := 0
+	a.Packets = make([]uint32, 0)
+	var i uint16
+	for ; i < packetcount && cnt < 4096; i++ {
+		var flag byte
+		if flag, err = a.ReadByte(); err != nil {
+			return
+		} else if flag == 0 {
+			var start, end uint32
+			if start, err = ReadLTriad(a.Buffer); err != nil {
+				return
+			}
+			if end, err = ReadLTriad(a.Buffer); err != nil {
+				return
+			}
+			if (end - start) > 512 {
+				end = start + 512
+			}
+			for c := start; c <= end; c++ {
+				a.Packets = append(a.Packets, c)
+				cnt++
+			}
+		} else {
+			var c uint32
+			if c, err = ReadLTriad(a.Buffer); err != nil {
+				return
+			}
+			a.Packets = append(a.Packets, c)
+			cnt++
+		}
+	}
+	return
 }
