@@ -9,6 +9,7 @@ import (
 	"net"
 	"network/packet"
 	"network/protocol"
+	"player"
 	"strconv"
 	"time"
 	"util/logging"
@@ -20,6 +21,7 @@ type Session struct {
 	RecvStream      chan packet.Packet
 	SendStream      chan packet.Packet
 	ServerID        uint64
+	PlayerHandler   player.Handler
 	mtuSize         uint16
 	connectionState byte
 	sendSeqNum      uint32
@@ -30,24 +32,31 @@ type Session struct {
 	needPong        uint64
 	gotPong         bool
 	recoveryQueue   map[uint32]packet.Packet
+	receivedWindow  map[uint32]uint32
+	windowBorder    [2]uint32
+	lastSeq         uint32
 	ackQueue        []uint32
 	nackQueue       []uint32
 	closed          bool
 }
 
 const (
-	unconnected byte = 0
-	connecting1 byte = 1
-	connecting2 byte = 2
-	connected   byte = 3
+	unconnected  byte = 0
+	connecting1  byte = 1
+	connecting2  byte = 2
+	connected    byte = 3
+	recoverysize uint = 128
+	windowsize   uint = 32
 )
 
 //Handle is a loop for handling packets from RecvStream channel.
 func (session *Session) Handle() {
 	session.splitPackets = make(map[uint16]map[uint32][]byte)
 	session.asyncPingTicker = time.NewTicker(time.Second * 7)
-	session.ackTicker = time.NewTicker(time.Millisecond * 50)
+	session.ackTicker = time.NewTicker(time.Millisecond * 200)
 	session.recoveryQueue = make(map[uint32]packet.Packet)
+	session.receivedWindow = make(map[uint32]uint32)
+	session.windowBorder[1] = uint32(windowsize) // [start|end)
 	go session.asyncPing()
 	go session.acknowledgement()
 	for pk := range session.RecvStream {
@@ -126,12 +135,20 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	case pk.Head == 0xc0: //ACK
 		ack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
 		ack.Decode()
-		logging.Debug("Got ACK:", ack.Packets)
+		for pk := range ack.Packets {
+			if _, ok := session.recoveryQueue[uint32(pk)]; ok {
+				delete(session.recoveryQueue, uint32(pk))
+			}
+		}
 		return true
 	case pk.Head == 0xa0: //NACK
 		nack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
 		nack.Decode()
-		logging.Debug("Got NACK:", nack.Packets)
+		for pk := range nack.Packets {
+			if rpk, ok := session.recoveryQueue[uint32(pk)]; ok {
+				session.SendStream <- rpk
+			}
+		}
 		return true
 	case session.connectionState == connecting2 || session.connectionState == connected:
 		var dp packet.DataPacket
@@ -148,6 +165,32 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	logging.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
 	session.ackQueue = append(session.ackQueue, dp.SeqNumber)
+	for seq := range session.receivedWindow {
+		if seq < session.windowBorder[0] {
+			delete(session.receivedWindow, seq)
+			logging.Debug("recvWindow: clean", seq)
+			continue
+		}
+		break
+	}
+	if _, ok := session.receivedWindow[dp.SeqNumber]; ok || dp.SeqNumber < session.windowBorder[0] || dp.SeqNumber >= session.windowBorder[1] {
+		return true
+	}
+	diff := dp.SeqNumber - session.lastSeq
+	if diff != 1 {
+		logging.Debug("Packet loss: diff is", diff)
+		for i := session.lastSeq + 1; i < dp.SeqNumber; i++ {
+			if _, ok := session.receivedWindow[dp.SeqNumber]; !ok {
+				session.nackQueue = append(session.nackQueue, i)
+				logging.Debug("Packet loss: requesting", i)
+			}
+		}
+	}
+	if diff > 0 {
+		session.lastSeq = dp.SeqNumber
+		session.windowBorder[0] += diff
+		session.windowBorder[1] += diff
+	}
 	for i, pk := range dp.Packets {
 		if dp.EncapsulatedPackets[i].HasSplit {
 			logging.Debug("handling split")
@@ -294,8 +337,17 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 	dp.SeqNumber = session.sendSeqNum
 	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(pk.Bytes()), Head: 0, Address: *new(net.UDPAddr)}}
 	rpk := dp.Encode(0x80)
-	if pk.NeedACK {
-		session.recoveryQueue[session.sendSeqNum] = rpk
+	if recoverysize > 0 {
+		if pk.NeedACK {
+			session.recoveryQueue[session.sendSeqNum] = rpk
+		}
+		tmp := session.sendSeqNum - uint32(recoverysize)
+		if tmp < 0 {
+			tmp = 1<<6 + tmp
+		}
+		if _, ok := session.recoveryQueue[tmp]; ok {
+			delete(session.recoveryQueue, tmp)
+		}
 	}
 	session.sendSeqNum++
 	if session.sendSeqNum == 1<<6 {

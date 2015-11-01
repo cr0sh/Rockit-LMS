@@ -10,6 +10,7 @@ import (
 	"network/session"
 	"strconv"
 	"strings"
+	"util/logging"
 )
 
 //Socket struct.
@@ -24,7 +25,7 @@ var ServerID uint64
 
 //Open opens socket with given port
 func (s *Socket) Open(port int16) (err error) {
-	fmt.Println("Opening socket on 0.0.0.0:", port)
+	logging.Verbose("Opening socket on 0.0.0.0:", port)
 	s.Input = make(chan packet.Packet, 1024)
 	ServerAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:"+strconv.Itoa(int(port)))
 	if err != nil {

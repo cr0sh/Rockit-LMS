@@ -5,11 +5,10 @@ import (
 	"time"
 )
 
-//Level declares how much data will be printed to console. 0: debugging, 1: verbose, 2: warning, 3: error, 4: nothing(only panic)
-var Level int
+var level = 1
 
-func log(level int, prefix string, f ...interface{}) {
-	if level < Level {
+func log(lv int, prefix string, f ...interface{}) {
+	if lv < level {
 		return
 	}
 	t := time.Now()
@@ -41,4 +40,27 @@ func FromError(err error, level int) {
 //Error prints ERROR-level log from given string
 func Error(f ...interface{}) {
 	log(3, "***ERROR***: ", f...)
+}
+
+//SetLevel declares how much data will be printed to console. 0: debugging, 1: verbose, 2: warning, 3: error, 4: nothing(only panic)
+func SetLevel(lv int) {
+	if lv <= 4 && lv >= 0 {
+		switch lv {
+		case 0:
+			level = lv
+			Debug("Set loglevel to DEBUG:", lv)
+		case 1:
+			Debug("Set loglevel to VERBOSE:", lv)
+			level = lv
+		case 2:
+			Verbose("Set loglevel to WARNING-and-upper:", lv)
+			level = lv
+		case 3:
+			Verbose("Set loglevel to ERROR-only:", lv)
+			level = lv
+		case 4:
+			Verbose("Set loglevel to PANIC:", lv)
+			level = lv
+		}
+	}
 }
