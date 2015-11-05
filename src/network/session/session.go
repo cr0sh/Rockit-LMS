@@ -202,8 +202,45 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	return true
 }
 
+func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
+	logging.Debug("Split result: SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
+	if ep.SplitCount > 1024 {
+		logging.Debug("Oops: invalid packet", hex.Dump(ep.Bytes()))
+		session.Close("Bad client")
+		return
+	}
+	if _, ok := session.splitPackets[ep.SplitID]; !ok {
+		session.splitPackets[ep.SplitID] = make(map[uint32][]byte)
+	}
+	if _, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
+		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
+	}
+	buffer := new(bytes.Buffer)
+	for i := 0; i < int(ep.SplitCount); i++ {
+		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
+			logging.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
+			break
+		} else {
+			buffer.Write(buf)
+		}
+	}
+	ppk := *new(packet.Packet)
+	var err error
+	if ppk.Head, err = buffer.ReadByte(); err != nil {
+		return
+	}
+	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
+	logging.Debug("Handled split")
+	session.handleEncapsulatedPacket(ppk)
+}
+
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
+	if pk.Head >= 0x80 && session.connectionState == connected {
+		logging.Debug("Forwarding packet to player")
+		session.PlayerHandler.HandlePacket(pk)
+		return
+	}
 	switch pk.Head {
 	case 0x00:
 		var pingID uint64
@@ -253,43 +290,13 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		session.sendDataPacket(ep)
 	case 0x13:
 		if _, err := packet.ReadAddress(pk.Buffer); err == nil {
+			session.connectionState = connected
 			logging.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
+			session.PlayerHandler = player.Handler{Address: session.Address}
 		}
 	case 0x15:
 		session.Close("client disconnect")
 	}
-}
-
-func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
-	logging.Debug("SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
-	if ep.SplitCount > 1024 {
-		logging.Debug("Oops: invalid packet", hex.Dump(ep.Bytes()))
-		session.Close("Bad client")
-		return
-	}
-	if _, ok := session.splitPackets[ep.SplitID]; !ok {
-		session.splitPackets[ep.SplitID] = make(map[uint32][]byte)
-	}
-	if _, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
-		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
-	}
-	buffer := new(bytes.Buffer)
-	for i := 0; i < int(ep.SplitCount); i++ {
-		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
-			logging.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
-			break
-		} else {
-			buffer.Write(buf)
-		}
-	}
-	ppk := *new(packet.Packet)
-	var err error
-	if ppk.Head, err = buffer.ReadByte(); err != nil {
-		return
-	}
-	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
-	logging.Debug("Handled split")
-	session.handleEncapsulatedPacket(ppk)
 }
 
 func (session *Session) asyncPing() {
