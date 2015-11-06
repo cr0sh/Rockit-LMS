@@ -6,4 +6,5 @@ import "player"
 type MCPEPacket interface {
 	Encode() error
 	Decode(*player.Player) error
+	Fields() map[string]interface{}
 }

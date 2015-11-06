@@ -339,10 +339,44 @@ func (session *Session) acknowledgement() {
 }
 
 func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
+	buf := pk.Bytes()
+	needACK := pk.NeedACK
+	if len(buf) > 8190 {
+		var dpk packet.DataPacket
+		var err error
+		if dpk, err = pk.Decapsulate(); err != nil {
+			logging.FromError(packet.NewError(buf, err), 1)
+			return
+		}
+		buf = dpk.Bytes()
+		splitID := uint16(rand.Uint32())
+		splitCount := math.Floor(len(buf)/8190) + 1
+		for i := 0; i < splitCount-1; i++ {
+			ppk := *new(packet.EncapsulatedPacket)
+			ppk.NeedACK = needACK
+			ppk.HasSplit = true
+			ppk.SplitID = splitID
+			ppk.SplitIndex = i
+			dpk = *new(packet.DataPacket)
+			dpk.Buffer = bytes.NewBuffer(buf[i*8190 : (i+1)*8190])
+			ppk.Encapsulate(dpk)
+			session.sendDataPacket(ppk)
+		}
+		ppk := *new(packet.EncapsulatedPacket)
+		ppk.NeedACK = needACK
+		ppk.HasSplit = true
+		ppk.SplitID = splitID
+		ppk.SplitIndex = i
+		dpk = *new(packet.DataPacket)
+		dpk.Buffer = bytes.NewBuffer(buf[(splitCount-1)*8190:])
+		ppk.Encapsulate(dpk)
+		session.sendDataPacket(ppk)
+		return
+	}
 	dp := *new(packet.DataPacket)
 	dp.Buffer = new(bytes.Buffer)
 	dp.SeqNumber = session.sendSeqNum
-	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(pk.Bytes()), Head: 0, Address: *new(net.UDPAddr)}}
+	dp.Packets = []packet.Packet{packet.Packet{Buffer: bytes.NewBuffer(buf), Head: 0, Address: *new(net.UDPAddr)}}
 	rpk := dp.Encode(0x80)
 	if recoverysize > 0 {
 		if pk.NeedACK {
