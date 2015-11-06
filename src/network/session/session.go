@@ -342,22 +342,23 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 	buf := pk.Bytes()
 	needACK := pk.NeedACK
 	if len(buf) > 8190 {
-		var dpk packet.DataPacket
+		var dpk packet.Packet
 		var err error
-		if dpk, err = pk.Decapsulate(); err != nil {
-			logging.FromError(packet.NewError(buf, err), 1)
+		if dpk, err = pk.Decapsulate(new(int)); err != nil {
+			logging.FromError(packet.NewError(bytes.NewBuffer(buf), err), 1)
 			return
 		}
 		buf = dpk.Bytes()
 		splitID := uint16(rand.Uint32())
-		splitCount := math.Floor(len(buf)/8190) + 1
-		for i := 0; i < splitCount-1; i++ {
+		splitCount := int(math.Floor(float64(len(buf)/8190))) + 1
+		var i int
+		for i := 0; i < int(splitCount-1); i++ {
 			ppk := *new(packet.EncapsulatedPacket)
 			ppk.NeedACK = needACK
 			ppk.HasSplit = true
 			ppk.SplitID = splitID
-			ppk.SplitIndex = i
-			dpk = *new(packet.DataPacket)
+			ppk.SplitIndex = uint32(i)
+			dpk = *new(packet.Packet)
 			dpk.Buffer = bytes.NewBuffer(buf[i*8190 : (i+1)*8190])
 			ppk.Encapsulate(dpk)
 			session.sendDataPacket(ppk)
@@ -366,8 +367,8 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 		ppk.NeedACK = needACK
 		ppk.HasSplit = true
 		ppk.SplitID = splitID
-		ppk.SplitIndex = i
-		dpk = *new(packet.DataPacket)
+		ppk.SplitIndex = uint32(i)
+		dpk = *new(packet.Packet)
 		dpk.Buffer = bytes.NewBuffer(buf[(splitCount-1)*8190:])
 		ppk.Encapsulate(dpk)
 		session.sendDataPacket(ppk)
