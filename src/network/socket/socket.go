@@ -57,7 +57,7 @@ func (s *Socket) ProcessRecv() {
 					binary.Write(pk.Buffer, binary.BigEndian, PingID)
 					binary.Write(pk.Buffer, binary.BigEndian, ServerID)
 					binary.Write(pk.Buffer, binary.BigEndian, protocol.RaknetMagic)
-					pk.PutStr("MCPE;Rockit - using dev build now;34;0.12.1;0;20")
+					pk.PutStr("MCPE;Rockit - using dev build now;34;" + protocol.MinecraftVersion + ";0;20")
 					s.sendPacket(*pk)
 				} else {
 					fmt.Print("Error while decoding packet:", err)
