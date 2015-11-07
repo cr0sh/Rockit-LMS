@@ -1,3 +1,4 @@
+//Package socket provides asynchronous UDP socket and sends packets to each sessions
 package socket
 
 import (

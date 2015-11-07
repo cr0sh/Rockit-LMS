@@ -1,3 +1,4 @@
+//Package mcpe provides Mojang-defined MCPE packets
 package mcpe
 
 import (
@@ -9,6 +10,7 @@ type Packet interface {
 	Encode() error
 	Decode() error
 	Fields() map[string]interface{}
+	SetField(string) interface{}
 }
 
 var packetPool map[byte]Packet

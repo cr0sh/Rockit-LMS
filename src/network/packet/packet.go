@@ -1,3 +1,4 @@
+//Package packet defines packet structs, related functions for Raknet connection
 package packet
 
 import (

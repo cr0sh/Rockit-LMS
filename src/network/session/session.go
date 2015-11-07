@@ -1,3 +1,4 @@
+//Package session provides Raknet session and packet processings
 package session
 
 import (
@@ -108,7 +109,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		}
 		session.mtuSize = uint16(math.Min(float64(binary.BigEndian.Uint16(mtusize)+18), 1464))
 		pk := packet.NewPacket(0x06)
-		pk.Buffer.Write(protocol.RaknetMagic)
+		pk.Buffer.Write([]byte(protocol.RaknetMagic))
 		binary.Write(pk, binary.BigEndian, session.ServerID)
 		pk.WriteByte(0)
 		binary.Write(pk, binary.BigEndian, mtusize)
@@ -124,7 +125,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 			return true
 		}
 		pk = packet.NewPacket(0x08)
-		pk.Write(protocol.RaknetMagic)
+		pk.Write([]byte(protocol.RaknetMagic))
 		binary.Write(pk.Buffer, binary.BigEndian, session.ServerID)
 		packet.PutAddress(session.Address, pk.Buffer, 4)
 		binary.Write(pk.Buffer, binary.BigEndian, session.mtuSize)
@@ -238,7 +239,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	if pk.Head >= 0x80 && session.connectionState == connected {
 		logging.Debug("Forwarding packet to player")
-		session.PlayerHandler.HandlePacket(pk)
+		session.PlayerHandler.HandlePacket(pk.GetBytes())
 		return
 	}
 	switch pk.Head {

@@ -1,3 +1,4 @@
+//Package logging provides logger with log levels, timestamps, etc.
 package logging
 
 import (

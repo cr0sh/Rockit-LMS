@@ -1,3 +1,4 @@
+//Package server contains main server code
 package server
 
 import (
@@ -5,6 +6,7 @@ import (
 	"sync"
 )
 
+//Server is a struct with server-specific informations
 type Server struct {
 	ServerID uint64
 	Socket   socket.Socket
@@ -16,6 +18,7 @@ func suspend() {
 	wg.Wait()
 }
 
+//Start initializes server and starts
 func (server *Server) Start() {
 	socket.ServerID = server.ServerID
 	go server.Socket.ProcessSend()

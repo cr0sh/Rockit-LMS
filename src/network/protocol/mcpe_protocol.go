@@ -1,6 +1,6 @@
 package protocol
 
-var (
+const (
 	//MinecraftProtocol defines current MCPE protocol version
 	MinecraftProtocol = 34
 	//MinecraftVersion defines MCPE version, used with UNCONNECTED_PONG
