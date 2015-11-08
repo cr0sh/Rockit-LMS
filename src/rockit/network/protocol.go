@@ -1,5 +1,4 @@
-//Package protocol defines protocol constants, like versions.
-package protocol
+package network
 
 const (
 	//RaknetProtocol defines current RakNet version

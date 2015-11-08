@@ -1,5 +1,4 @@
-//Package session provides Raknet session and packet processings
-package session
+package network
 
 import (
 	"bytes"
@@ -9,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 	"rockit/network/packet"
-	"rockit/network/protocol"
 	"rockit/player"
 	"rockit/util/logging"
 	"strconv"
@@ -50,8 +48,8 @@ const (
 	windowsize   uint = 32
 )
 
-//Handle is a loop for handling packets from RecvStream channel.
-func (session *Session) Handle() {
+//HandleSession is a loop for handling packets from RecvStream channel.
+func (session *Session) HandleSession() {
 	session.splitPackets = make(map[uint16]map[uint32][]byte)
 	session.asyncPingTicker = time.NewTicker(time.Second * 7)
 	session.ackTicker = time.NewTicker(time.Millisecond * 200)
@@ -95,8 +93,8 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		if len(pk.Buffer.Bytes()) < 18 {
 			logging.Error("Error while processing pacekt parse: buffer too short")
 			return true
-		} else if proto, err := pk.ReadByte(); err == nil && int(proto) != protocol.RaknetProtocol {
-			logging.Error("Raknet protocol mismatch: " + strconv.Itoa(int(pk.Buffer.Bytes()[16])) + " != " + strconv.Itoa(protocol.RaknetProtocol))
+		} else if proto, err := pk.ReadByte(); err == nil && int(proto) != RaknetProtocol {
+			logging.Error("Raknet protocol mismatch: " + strconv.Itoa(int(pk.Buffer.Bytes()[16])) + " != " + strconv.Itoa(RaknetProtocol))
 			return true
 		} else if err != nil {
 			logging.FromError(err, 0)
@@ -109,7 +107,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		}
 		session.mtuSize = uint16(math.Min(float64(binary.BigEndian.Uint16(mtusize)+18), 1464))
 		pk := packet.NewPacket(0x06)
-		pk.Buffer.Write([]byte(protocol.RaknetMagic))
+		pk.Buffer.Write([]byte(RaknetMagic))
 		binary.Write(pk, binary.BigEndian, session.ServerID)
 		pk.WriteByte(0)
 		binary.Write(pk, binary.BigEndian, mtusize)
@@ -125,7 +123,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 			return true
 		}
 		pk = packet.NewPacket(0x08)
-		pk.Write([]byte(protocol.RaknetMagic))
+		pk.Write([]byte(RaknetMagic))
 		binary.Write(pk.Buffer, binary.BigEndian, session.ServerID)
 		packet.PutAddress(session.Address, pk.Buffer, 4)
 		binary.Write(pk.Buffer, binary.BigEndian, session.mtuSize)

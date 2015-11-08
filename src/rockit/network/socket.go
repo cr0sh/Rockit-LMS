@@ -1,5 +1,4 @@
-//Package socket provides asynchronous UDP socket and sends packets to each sessions
-package socket
+package network
 
 import (
 	"bytes"
@@ -7,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"rockit/network/packet"
-	"rockit/network/protocol"
-	"rockit/network/session"
 	"rockit/util/logging"
 	"strconv"
 	"strings"
@@ -18,7 +15,7 @@ import (
 type Socket struct {
 	ServerConn *net.UDPConn
 	Input      chan packet.Packet
-	Sessions   map[string]*session.Session
+	Sessions   map[string]*Session
 }
 
 //ServerID variable
@@ -37,7 +34,7 @@ func (s *Socket) Open(port int16) (err error) {
 	if err != nil {
 		return err
 	}
-	s.Sessions = make(map[string]*session.Session)
+	s.Sessions = make(map[string]*Session)
 	return nil
 }
 
@@ -57,8 +54,8 @@ func (s *Socket) ProcessRecv() {
 					pk.Head = 0x1c
 					binary.Write(pk.Buffer, binary.BigEndian, PingID)
 					binary.Write(pk.Buffer, binary.BigEndian, ServerID)
-					binary.Write(pk.Buffer, binary.BigEndian, protocol.RaknetMagic)
-					pk.PutStr("MCPE;Rockit - using dev build now;34;" + protocol.MinecraftVersion + ";0;20")
+					binary.Write(pk.Buffer, binary.BigEndian, RaknetMagic)
+					pk.PutStr("MCPE;Rockit - using dev build now;34;" + MinecraftVersion + ";0;20")
 					s.sendPacket(*pk)
 				} else {
 					fmt.Print("Error while decoding packet:", err)
@@ -88,20 +85,20 @@ func (s *Socket) sendToSession(pk *packet.Packet) {
 	s.getSession(pk.Address).RecvStream <- *pk
 }
 
-func (s *Socket) getSession(address net.UDPAddr) *session.Session {
+func (s *Socket) getSession(address net.UDPAddr) *Session {
 	addr := address.IP.String() + ":" + strconv.Itoa(address.Port)
 	if sess, ok := s.Sessions[addr]; ok {
 		return sess
 	}
 	fmt.Println("New session:", addr)
-	sess := &session.Session{
+	sess := &Session{
 		Address:    address,
 		RecvStream: make(chan packet.Packet, 1024),
 		SendStream: make(chan packet.Packet, 1024),
 		ServerID:   ServerID,
 	}
 	s.Sessions[addr] = sess
-	go sess.Handle()
+	go sess.HandleSession()
 	return sess
 
 }

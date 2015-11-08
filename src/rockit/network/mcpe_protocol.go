@@ -1,4 +1,4 @@
-package protocol
+package network
 
 const (
 	//MinecraftProtocol defines current MCPE protocol version

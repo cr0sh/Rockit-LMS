@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"rockit/network/socket"
+	"rockit/network"
 	"rockit/server"
 	"rockit/util/logging"
 )
@@ -16,7 +16,7 @@ func main() {
 	if *debug {
 		logging.SetLevel(0)
 	}
-	server := server.Server{ServerID: uint64(rand.Uint32()), Socket: *new(socket.Socket)}
+	server := server.Server{ServerID: uint64(rand.Uint32()), Socket: *new(network.Socket)}
 	if err := server.Socket.Open(19132); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
