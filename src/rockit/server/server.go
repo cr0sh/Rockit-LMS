@@ -2,7 +2,7 @@
 package server
 
 import (
-	"network/socket"
+	"rockit/network/socket"
 	"sync"
 )
 

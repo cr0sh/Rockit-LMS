@@ -2,7 +2,7 @@ package player
 
 import (
 	"net"
-	"network/packet/mcpe"
+	"rockit/network/packet/mcpe"
 )
 
 //Handler handles packets from player and controls player entity.

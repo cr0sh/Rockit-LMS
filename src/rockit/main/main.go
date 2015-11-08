@@ -4,10 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
-	"network/socket"
 	"os"
-	"server"
-	"util/logging"
+	"rockit/network/socket"
+	"rockit/server"
+	"rockit/util/logging"
 )
 
 func main() {

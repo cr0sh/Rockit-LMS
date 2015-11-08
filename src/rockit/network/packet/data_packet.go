@@ -3,7 +3,7 @@ package packet
 import (
 	"bytes"
 	"net"
-	"util/logging"
+	"rockit/util/logging"
 )
 
 //DataPacket will be used to process MCPE data packets, containing encapsulated packets.

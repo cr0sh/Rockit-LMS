@@ -6,12 +6,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"network/packet"
-	"network/protocol"
-	"network/session"
+	"rockit/network/packet"
+	"rockit/network/protocol"
+	"rockit/network/session"
+	"rockit/util/logging"
 	"strconv"
 	"strings"
-	"util/logging"
 )
 
 //Socket struct.

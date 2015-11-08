@@ -9,7 +9,7 @@ import (
 type Packet interface {
 	Encode() error
 	Decode() error
-	Fields() map[string]interface{}
+	GetField(string) interface{}
 	SetField(string) interface{}
 }
 

@@ -8,12 +8,12 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"network/packet"
-	"network/protocol"
-	"player"
+	"rockit/network/packet"
+	"rockit/network/protocol"
+	"rockit/player"
+	"rockit/util/logging"
 	"strconv"
 	"time"
-	"util/logging"
 )
 
 //Session struct contains packet channels for packet I/O, connection state, and source address.
