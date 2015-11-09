@@ -3,7 +3,7 @@ package packet
 import (
 	"bytes"
 	"net"
-	"rockit/util/logging"
+	"rockit/util"
 )
 
 //DataPacket will be used to process MCPE data packets, containing encapsulated packets.
@@ -48,7 +48,7 @@ func (dp *DataPacket) Decode() (err error) {
 		ep.Buffer = bytes.NewBuffer(dp.Bytes())
 		var pk Packet
 		if pk, err = ep.Decapsulate(&off); err != nil {
-			logging.Debug("Offset", off)
+			util.Debug("Offset", off)
 			return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 		}
 		dp.Packets = append(dp.Packets, pk)

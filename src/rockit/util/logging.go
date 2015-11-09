@@ -1,5 +1,4 @@
-//Package logging provides logger with log levels, timestamps, etc.
-package logging
+package util
 
 import (
 	"fmt"
@@ -35,12 +34,12 @@ func Warning(f ...interface{}) {
 
 //FromError prints ERROR-level log from error
 func FromError(err error, level int) {
-	log(level, "***ERROR***:", err.Error())
+	log(level, "** ERROR **: ", err.Error())
 }
 
 //Error prints ERROR-level log from given string
 func Error(f ...interface{}) {
-	log(3, "***ERROR***: ", f...)
+	log(3, "** ERROR **: ", f...)
 }
 
 //SetLevel declares how much data will be printed to console. 0: debugging, 1: verbose, 2: warning, 3: error, 4: nothing(only panic)

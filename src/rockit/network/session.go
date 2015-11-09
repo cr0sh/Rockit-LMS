@@ -9,7 +9,7 @@ import (
 	"net"
 	"rockit/network/packet"
 	"rockit/player"
-	"rockit/util/logging"
+	"rockit/util"
 	"strconv"
 	"time"
 )
@@ -20,6 +20,7 @@ type Session struct {
 	RecvStream      chan packet.Packet
 	SendStream      chan packet.Packet
 	ServerID        uint64
+	SessionID       uint
 	PlayerHandler   player.Handler
 	mtuSize         uint16
 	connectionState byte
@@ -71,7 +72,7 @@ func (session *Session) HandleSession() {
 			head := pk.Head
 			buf := pk.GetBytes()
 			if !session.handlePacket(pk) {
-				logging.Debug("Unexpected packet header: 0x", hex.EncodeToString([]byte{head}), "\n"+hex.Dump(buf))
+				util.Debug("Unexpected packet header: 0x", hex.EncodeToString([]byte{head}), "\n"+hex.Dump(buf))
 			}
 		}
 	}
@@ -82,7 +83,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		var dp packet.DataPacket
 		var err error
 		if dp, err = packet.NewDataPacket(pk); err != nil {
-			logging.Debug("Error while decoding data packet:", err)
+			util.Debug("Error while decoding data packet:", err)
 			return true
 		}
 		return session.handleDataPacket(dp)
@@ -91,18 +92,18 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 	case pk.Head == 0x05:
 		pk.Next(16) //Magic
 		if len(pk.Buffer.Bytes()) < 18 {
-			logging.Error("Error while processing pacekt parse: buffer too short")
+			util.Error("Error while processing pacekt parse: buffer too short")
 			return true
 		} else if proto, err := pk.ReadByte(); err == nil && int(proto) != RaknetProtocol {
-			logging.Error("Raknet protocol mismatch: " + strconv.Itoa(int(pk.Buffer.Bytes()[16])) + " != " + strconv.Itoa(RaknetProtocol))
+			util.Error("Raknet protocol mismatch: " + strconv.Itoa(int(pk.Buffer.Bytes()[16])) + " != " + strconv.Itoa(RaknetProtocol))
 			return true
 		} else if err != nil {
-			logging.FromError(err, 0)
+			util.FromError(err, 0)
 			return true
 		}
 		mtusize := make([]byte, 2)
 		if _, err := pk.Read(mtusize); err != nil {
-			logging.FromError(err, 0)
+			util.FromError(err, 0)
 			return true
 		}
 		session.mtuSize = uint16(math.Min(float64(binary.BigEndian.Uint16(mtusize)+18), 1464))
@@ -113,13 +114,13 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		binary.Write(pk, binary.BigEndian, mtusize)
 		session.SendStream <- pk
 		session.connectionState = connecting1
-		logging.Debug("set state to 1")
+		util.Debug("set state to 1")
 		return true
 	case pk.Head == 0x07:
 		pk.Next(16) //Magic
 		if _, err := packet.ReadAddress(pk.Buffer); err != nil {
-			logging.FromError(err, 0)
-			logging.Debug(hex.EncodeToString([]byte{pk.Head}), "\n"+hex.Dump(append([]byte{pk.Head}, pk.Buffer.Bytes()...)))
+			util.FromError(err, 0)
+			util.Debug(hex.EncodeToString([]byte{pk.Head}), "\n"+hex.Dump(append([]byte{pk.Head}, pk.Buffer.Bytes()...)))
 			return true
 		}
 		pk = packet.NewPacket(0x08)
@@ -129,7 +130,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		binary.Write(pk.Buffer, binary.BigEndian, session.mtuSize)
 		session.SendStream <- pk
 		session.connectionState = connecting2
-		logging.Debug("set state to 2")
+		util.Debug("set state to 2")
 		return true
 	case pk.Head == 0xc0: //ACK
 		ack := packet.AcknowledgePacket{bytes.NewBuffer(pk.Bytes()), make([]uint32, 0)}
@@ -153,7 +154,7 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 		var dp packet.DataPacket
 		var err error
 		if dp, err = packet.NewDataPacket(pk); err != nil {
-			logging.FromError(err, 0)
+			util.FromError(err, 0)
 			return true
 		}
 		return session.handleDataPacket(dp)
@@ -162,12 +163,12 @@ func (session *Session) handlePacket(pk packet.Packet) bool {
 }
 
 func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
-	logging.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
+	util.Debug("Seqnumber " + strconv.Itoa(int(dp.SeqNumber)))
 	session.ackQueue = append(session.ackQueue, dp.SeqNumber)
 	for seq := range session.receivedWindow {
 		if seq < session.windowBorder[0] {
 			delete(session.receivedWindow, seq)
-			logging.Debug("recvWindow: clean", seq)
+			util.Debug("recvWindow: clean", seq)
 			continue
 		}
 		break
@@ -177,11 +178,11 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	}
 	diff := dp.SeqNumber - session.lastSeq
 	if diff != 1 {
-		logging.Debug("Packet loss: diff is", diff)
+		util.Debug("Packet loss: diff is", diff)
 		for i := session.lastSeq + 1; i < dp.SeqNumber; i++ {
 			if _, ok := session.receivedWindow[dp.SeqNumber]; !ok {
 				session.nackQueue = append(session.nackQueue, i)
-				logging.Debug("Packet loss: requesting", i)
+				util.Debug("Packet loss: requesting", i)
 			}
 		}
 	}
@@ -192,7 +193,7 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 	}
 	for i, pk := range dp.Packets {
 		if dp.EncapsulatedPackets[i].HasSplit {
-			logging.Debug("handling split")
+			util.Debug("handling split")
 			session.handleSplitPacket(dp.EncapsulatedPackets[i], pk)
 		} else {
 			session.handleEncapsulatedPacket(pk)
@@ -202,9 +203,9 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 }
 
 func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packet.Packet) {
-	logging.Debug("Split result: SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
+	util.Debug("Split result: SplitID", ep.SplitID, "SplitIndex", ep.SplitIndex, "SplitCount", ep.SplitCount)
 	if ep.SplitCount > 1024 {
-		logging.Debug("Oops: invalid packet", hex.Dump(ep.Bytes()))
+		util.Debug("Oops: invalid packet", hex.Dump(ep.Bytes()))
 		session.Close("Bad client")
 		return
 	}
@@ -217,7 +218,7 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 	buffer := new(bytes.Buffer)
 	for i := 0; i < int(ep.SplitCount); i++ {
 		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
-			logging.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
+			util.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
 			break
 		} else {
 			buffer.Write(buf)
@@ -229,14 +230,14 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 		return
 	}
 	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
-	logging.Debug("Handled split")
+	util.Debug("Handled split")
 	session.handleEncapsulatedPacket(ppk)
 }
 
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
-	logging.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
+	util.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	if pk.Head >= 0x80 && session.connectionState == connected {
-		logging.Debug("Forwarding packet to player")
+		util.Debug("Forwarding packet to player")
 		session.PlayerHandler.HandlePacket(pk.GetBytes())
 		return
 	}
@@ -258,16 +259,16 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		}
 		if pingID == session.needPong {
 			session.gotPong = true
-			logging.Debug("Got correct pong!")
+			util.Debug("Got correct pong!")
 		}
 	case 0x09:
 		var cid, sendPing int64
 		if err := binary.Read(pk, binary.BigEndian, &cid); err != nil {
-			logging.Error(packet.NewError(pk.Buffer, err), 0)
+			util.Error(packet.NewError(pk.Buffer, err), 0)
 			return
 		}
 		if err := binary.Read(pk, binary.BigEndian, &sendPing); err != nil {
-			logging.Error(packet.NewError(pk.Buffer, err), 0)
+			util.Error(packet.NewError(pk.Buffer, err), 0)
 			return
 		}
 		pk = packet.NewPacket(0x10)
@@ -276,7 +277,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 		if addr, err := net.ResolveUDPAddr("", "127.0.0.1:0"); err == nil {
 			packet.PutAddress(*addr, pk.Buffer, 4)
 		} else {
-			logging.Error(err, 0)
+			util.Error(err, 0)
 			return
 		}
 		for i := 0; i < 9; i++ {
@@ -290,7 +291,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	case 0x13:
 		if _, err := packet.ReadAddress(pk.Buffer); err == nil {
 			session.connectionState = connected
-			logging.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
+			util.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
 			session.PlayerHandler = player.Handler{Address: session.Address}
 		}
 	case 0x15:
@@ -344,7 +345,7 @@ func (session *Session) sendDataPacket(pk packet.EncapsulatedPacket) {
 		var dpk packet.Packet
 		var err error
 		if dpk, err = pk.Decapsulate(new(int)); err != nil {
-			logging.FromError(packet.NewError(bytes.NewBuffer(buf), err), 1)
+			util.FromError(packet.NewError(bytes.NewBuffer(buf), err), 1)
 			return
 		}
 		buf = dpk.Bytes()
@@ -407,7 +408,7 @@ func (session *Session) Close(reason string) {
 	session.sendDataPacket(ep)
 	session.closed = true
 	time.Sleep(time.Millisecond * 500) //Wait for 0.5 secs
-	logging.Verbose("Session", session.Address.String(), "closed:", reason)
+	util.Verbose("Session", session.Address.String(), "closed:", reason)
 	session.asyncPingTicker.Stop()
 	session.ackTicker.Stop()
 	close(session.RecvStream)

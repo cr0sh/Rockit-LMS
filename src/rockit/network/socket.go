@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"rockit/network/packet"
-	"rockit/util/logging"
+	"rockit/util"
 	"strconv"
 	"strings"
 )
@@ -16,6 +16,7 @@ type Socket struct {
 	ServerConn *net.UDPConn
 	Input      chan packet.Packet
 	Sessions   map[string]*Session
+	lastSID    uint
 }
 
 //ServerID variable
@@ -23,7 +24,7 @@ var ServerID uint64
 
 //Open opens socket with given port
 func (s *Socket) Open(port int16) (err error) {
-	logging.Verbose("Opening socket on 0.0.0.0:", port)
+	util.Verbose("Opening socket on 0.0.0.0:", port)
 	s.Input = make(chan packet.Packet, 1024)
 	ServerAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:"+strconv.Itoa(int(port)))
 	if err != nil {
@@ -50,12 +51,21 @@ func (s *Socket) ProcessRecv() {
 				if err := binary.Read(pk.Buffer, binary.BigEndian, &PingID); err == nil {
 					pk = new(packet.Packet)
 					pk.Address = *addr
-					pk.Buffer = new(bytes.Buffer)
+					pk.Buffer = bytes.NewBuffer([]byte{})
 					pk.Head = 0x1c
-					binary.Write(pk.Buffer, binary.BigEndian, PingID)
-					binary.Write(pk.Buffer, binary.BigEndian, ServerID)
-					binary.Write(pk.Buffer, binary.BigEndian, RaknetMagic)
-					pk.PutStr("MCPE;Rockit - using dev build now;34;" + MinecraftVersion + ";0;20")
+					if err := binary.Write(pk.Buffer, binary.BigEndian, PingID); err != nil {
+						util.FromError(err, 0)
+						continue
+					}
+					if err := binary.Write(pk.Buffer, binary.BigEndian, ServerID); err != nil {
+						util.FromError(err, 0)
+						continue
+					}
+					if err := binary.Write(pk.Buffer, binary.BigEndian, []byte(RaknetMagic)); err != nil {
+						util.FromError(err, 0)
+						continue
+					}
+					pk.PutStr("MCPE;Rockit - using dev build now;34;0.12.1;0;20")
 					s.sendPacket(*pk)
 				} else {
 					fmt.Print("Error while decoding packet:", err)
@@ -71,7 +81,7 @@ func (s *Socket) ProcessRecv() {
 }
 
 func (s *Socket) sendPacket(pk packet.Packet) {
-	s.ServerConn.WriteToUDP(append([]byte{pk.Head}, pk.Buffer.Bytes()...), &pk.Address)
+	s.ServerConn.WriteToUDP(pk.GetBytes(), &pk.Address)
 }
 
 //ProcessSend gets a packet from Socket.Input channel and sends it
@@ -96,11 +106,12 @@ func (s *Socket) getSession(address net.UDPAddr) *Session {
 		RecvStream: make(chan packet.Packet, 1024),
 		SendStream: make(chan packet.Packet, 1024),
 		ServerID:   ServerID,
+		SessionID:  s.lastSID,
 	}
+	s.lastSID++
 	s.Sessions[addr] = sess
 	go sess.HandleSession()
 	return sess
-
 }
 
 func (s *Socket) sendPackets() {

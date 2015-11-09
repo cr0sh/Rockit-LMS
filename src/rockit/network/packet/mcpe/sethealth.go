@@ -2,28 +2,28 @@ package mcpe
 
 import "bytes"
 
-//BatchPacket is a packet implements <TODO>
-type BatchPacket struct {
+//SetHealthPacket is a packet implements <TODO>
+type SetHealthPacket struct {
     *bytes.Buffer
     fields map[string]interface{}
 }
 
 //Encode encodes the packet
-func (pk BatchPacket) Encode() error {
+func (pk SetHealthPacket) Encode() error {
     return nil
 }
 
 //Decode decodes the packet
-func (pk BatchPacket) Decode() error {
+func (pk SetHealthPacket) Decode() error {
     return nil
 }
 
 //GetField returns specified field
-func (pk BatchPacket) GetField(string) interface{} {
+func (pk SetHealthPacket) GetField(string) interface{} {
     return nil
 }
 
 //SetField sets specified field
-func (pk BatchPacket) SetField(string) interface{} {
+func (pk SetHealthPacket) SetField(string) interface{} {
     return nil
 }
