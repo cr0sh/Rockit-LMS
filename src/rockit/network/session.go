@@ -10,6 +10,7 @@ import (
 	"rockit/network/packet"
 	"rockit/player"
 	"rockit/util"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -413,4 +414,6 @@ func (session *Session) Close(reason string) {
 	session.ackTicker.Stop()
 	close(session.RecvStream)
 	close(session.SendStream)
+	util.Debug("Stopping session goroutine")
+	runtime.Goexit()
 }
