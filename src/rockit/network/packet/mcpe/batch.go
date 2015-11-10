@@ -1,29 +1,29 @@
 package mcpe
 
-import "bytes"
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+)
 
 //BatchPacket is a packet implements <TODO>
-type BatchPacket struct {
-    *bytes.Buffer
-    fields map[string]interface{}
-}
+type BatchPacket struct{}
 
 //Encode encodes the packet
-func (pk BatchPacket) Encode() error {
-    return nil
+func (pk *BatchPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+	return
 }
 
 //Decode decodes the packet
-func (pk BatchPacket) Decode() error {
-    return nil
-}
-
-//GetField returns specified field
-func (pk BatchPacket) GetField(string) interface{} {
-    return nil
-}
-
-//SetField sets specified field
-func (pk BatchPacket) SetField(string) interface{} {
-    return nil
+func (pk BatchPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+	fields = make(map[string]interface{})
+	size := new(uint32)
+	binary.Read(buf, binary.BigEndian, size)
+	if *size == 0 {
+		err = fmt.Errorf("Invalid payload size: 0")
+		return
+	}
+	fields["payload"] = buf.Next(int(*size))
+	fields["size"] = *size
+	return
 }

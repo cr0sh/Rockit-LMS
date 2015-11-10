@@ -3,27 +3,14 @@ package mcpe
 import "bytes"
 
 //AnimatePacket is a packet implements <TODO>
-type AnimatePacket struct {
-    *bytes.Buffer
-    fields map[string]interface{}
-}
+type AnimatePacket struct{}
 
 //Encode encodes the packet
-func (pk AnimatePacket) Encode() error {
-    return nil
+func (pk *AnimatePacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+	return
 }
 
 //Decode decodes the packet
-func (pk AnimatePacket) Decode() error {
-    return nil
-}
-
-//GetField returns specified field
-func (pk AnimatePacket) GetField(string) interface{} {
-    return nil
-}
-
-//SetField sets specified field
-func (pk AnimatePacket) SetField(string) interface{} {
-    return nil
+func (pk AnimatePacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+	return
 }

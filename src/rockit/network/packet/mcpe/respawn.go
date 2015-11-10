@@ -3,27 +3,14 @@ package mcpe
 import "bytes"
 
 //RespawnPacket is a packet implements <TODO>
-type RespawnPacket struct {
-    *bytes.Buffer
-    fields map[string]interface{}
-}
+type RespawnPacket struct{}
 
 //Encode encodes the packet
-func (pk RespawnPacket) Encode() error {
-    return nil
+func (pk *RespawnPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+	return
 }
 
 //Decode decodes the packet
-func (pk RespawnPacket) Decode() error {
-    return nil
-}
-
-//GetField returns specified field
-func (pk RespawnPacket) GetField(string) interface{} {
-    return nil
-}
-
-//SetField sets specified field
-func (pk RespawnPacket) SetField(string) interface{} {
-    return nil
+func (pk RespawnPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+	return
 }
