@@ -3,6 +3,7 @@ package server
 
 import (
 	"rockit/network"
+	"rockit/network/packet/mcpe"
 	"rockit/player"
 	"sync"
 )
@@ -20,10 +21,11 @@ func suspend() {
 	wg.Wait()
 }
 
-//Start initializes server and starts
+//Start initializes server and starts it
 func (server *Server) Start() {
 	network.ServerID = server.ServerID
 	server.playerList = make(map[uint]player.Player)
+	mcpe.Init()
 	go server.Socket.ProcessSend()
 	go server.Socket.ProcessRecv()
 	suspend()

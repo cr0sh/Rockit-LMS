@@ -15,6 +15,7 @@ var packetPool map[byte]Packet
 
 //Init initializes packetPool
 func Init() {
+	packetPool = make(map[byte]Packet)
 	registerPacket(LoginPacketHead, *new(LoginPacket))
 	registerPacket(PlayStatusPacketHead, *new(PlayStatusPacket))
 	registerPacket(DisconnectPacketHead, *new(DisconnectPacket))
