@@ -174,24 +174,26 @@ func (session *Session) handleDataPacket(dp packet.DataPacket) bool {
 		}
 		break
 	}
-	if _, ok := session.receivedWindow[dp.SeqNumber]; ok || dp.SeqNumber < session.windowBorder[0] || dp.SeqNumber >= session.windowBorder[1] {
-		return true
-	}
-	diff := dp.SeqNumber - session.lastSeq
-	if diff != 1 {
-		util.Debug("Packet loss: diff is", diff)
-		for i := session.lastSeq + 1; i < dp.SeqNumber; i++ {
-			if _, ok := session.receivedWindow[dp.SeqNumber]; !ok {
-				session.nackQueue = append(session.nackQueue, i)
-				util.Debug("Packet loss: requesting", i)
+	/*
+		if _, ok := session.receivedWindow[dp.SeqNumber]; ok || dp.SeqNumber < session.windowBorder[0] || dp.SeqNumber >= session.windowBorder[1] {
+			return true
+		}
+		diff := dp.SeqNumber - session.lastSeq
+		if diff != 1 {
+			util.Debug("Packet loss: diff is", diff)
+			for i := session.lastSeq + 1; i < dp.SeqNumber; i++ {
+				if _, ok := session.receivedWindow[dp.SeqNumber]; !ok {
+					session.nackQueue = append(session.nackQueue, i)
+					util.Debug("Packet loss: requesting", i)
+				}
 			}
 		}
-	}
-	if diff > 0 {
-		session.lastSeq = dp.SeqNumber
-		session.windowBorder[0] += diff
-		session.windowBorder[1] += diff
-	}
+		if diff > 0 {
+			session.lastSeq = dp.SeqNumber
+			session.windowBorder[0] += diff
+			session.windowBorder[1] += diff
+		}
+	*/
 	for i, pk := range dp.Packets {
 		if dp.EncapsulatedPackets[i].HasSplit {
 			util.Debug("handling split")
@@ -213,17 +215,15 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 	if _, ok := session.splitPackets[ep.SplitID]; !ok {
 		session.splitPackets[ep.SplitID] = make(map[uint32][]byte)
 	}
-	if _, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
-		session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
-	}
+	session.splitPackets[ep.SplitID][ep.SplitIndex] = pk.GetBytes()
 	buffer := new(bytes.Buffer)
-	for i := 0; i < int(ep.SplitCount); i++ {
-		if buf, ok := session.splitPackets[ep.SplitID][ep.SplitIndex]; !ok {
-			util.Debug("Cannot handle split: need 0 <= n <=", ep.SplitCount-1, "missing:", i)
-			break
-		} else {
-			buffer.Write(buf)
+	for i := uint32(0); i < uint32(ep.SplitCount); i++ {
+		var ok bool
+		var buf []byte
+		if buf, ok = session.splitPackets[ep.SplitID][i]; !ok {
+			return
 		}
+		buffer.Write(buf)
 	}
 	ppk := *new(packet.Packet)
 	var err error
@@ -232,13 +232,13 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 	}
 	ppk.Buffer = bytes.NewBuffer(buffer.Bytes())
 	util.Debug("Handled split")
+	delete(session.splitPackets, ep.SplitID)
 	session.handleEncapsulatedPacket(ppk)
 }
 
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	util.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	if pk.Head >= 0x80 && session.connectionState == connected {
-		util.Debug("Forwarding packet to player")
 		session.PlayerHandler.HandlePacket(pk.GetBytes())
 		return
 	}
@@ -292,7 +292,7 @@ func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
 	case 0x13:
 		if _, err := packet.ReadAddress(pk.Buffer); err == nil {
 			session.connectionState = connected
-			util.Verbose("Client", session.Address.String(), "finally connected on Raknet level")
+			util.Debug("Client", session.Address.String(), "finally connected on Raknet level")
 			session.PlayerHandler = player.Handler{Address: session.Address}
 		}
 	case 0x15:

@@ -58,12 +58,10 @@ func (ep *EncapsulatedPacket) Encapsulate(p Packet) error {
 //Puts raw EncapsulatedPacket buffer to struct and run this to get decapsulated packet.
 func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 	pk = NewPacket(0)
+	cap := ep.Len()
 	var flags byte
 	if flags, err = ep.ReadByte(); err != nil {
 		return pk, errors.New("Error while reading flags: " + err.Error())
-	}
-	if flags%16 != 0 {
-		return pk, errors.New("Flags must be multiple of 16")
 	}
 	*offset = 1
 	ep.Reliability = (flags & (7 << 5)) >> 5
@@ -106,7 +104,12 @@ func (ep *EncapsulatedPacket) Decapsulate(offset *int) (pk Packet, err error) {
 		}
 		*offset += 4
 	}
-	buf := make([]byte, binary.BigEndian.Uint16(length))
+	var buf []byte
+	if binary.BigEndian.Uint16(length) > uint16(cap-*offset) {
+		buf = make([]byte, cap-*offset)
+	} else {
+		buf = make([]byte, binary.BigEndian.Uint16(length))
+	}
 	if _, err = ep.Read(buf); err != nil {
 		return pk, errors.New("Error while reading encapsulated buffer: " + err.Error())
 	}
