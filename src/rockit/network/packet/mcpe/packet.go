@@ -8,9 +8,12 @@ import (
 
 //Packet is a data packet interface, for MCPE Clients
 type Packet interface {
-	Encode(map[string]interface{}) ([]byte, error)
-	Decode(*bytes.Buffer) (map[string]interface{}, error)
+	Encode(Field) ([]byte, error)
+	Decode(*bytes.Buffer) (Field, error)
 }
+
+//Field is an alias of Field
+type Field map[string]interface{}
 
 var packetPool map[byte]Packet
 

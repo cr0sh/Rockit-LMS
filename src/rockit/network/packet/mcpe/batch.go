@@ -10,13 +10,13 @@ import (
 type BatchPacket struct{}
 
 //Encode encodes the packet
-func (pk *BatchPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *BatchPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk BatchPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
-	fields = make(map[string]interface{})
+func (pk BatchPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+	fields = make(Field)
 	size := new(uint32)
 	binary.Read(buf, binary.BigEndian, size)
 	if *size == 0 {

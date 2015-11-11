@@ -6,11 +6,11 @@ import "bytes"
 type MoveEntityPacket struct{}
 
 //Encode encodes the packet
-func (pk *MoveEntityPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *MoveEntityPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk MoveEntityPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk MoveEntityPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

@@ -237,7 +237,6 @@ func (session *Session) handleSplitPacket(ep packet.EncapsulatedPacket, pk packe
 }
 
 func (session *Session) handleEncapsulatedPacket(pk packet.Packet) {
-	util.Debug("Handling DataPacket head 0x" + hex.EncodeToString([]byte{pk.Head}))
 	if pk.Head >= 0x80 && session.connectionState == connected {
 		session.PlayerHandler.HandlePacket(pk.GetBytes())
 		return

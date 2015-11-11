@@ -6,11 +6,11 @@ import "bytes"
 type TextPacket struct{}
 
 //Encode encodes the packet
-func (pk *TextPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *TextPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk TextPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk TextPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

@@ -6,11 +6,11 @@ import "bytes"
 type DisconnectPacket struct{}
 
 //Encode encodes the packet
-func (pk *DisconnectPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *DisconnectPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk DisconnectPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk DisconnectPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

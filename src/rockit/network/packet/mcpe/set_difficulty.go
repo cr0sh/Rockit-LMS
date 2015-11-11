@@ -6,11 +6,11 @@ import "bytes"
 type SetDifficultyPacket struct{}
 
 //Encode encodes the packet
-func (pk *SetDifficultyPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *SetDifficultyPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk SetDifficultyPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk SetDifficultyPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

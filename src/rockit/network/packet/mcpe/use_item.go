@@ -6,11 +6,11 @@ import "bytes"
 type UseItemPacket struct{}
 
 //Encode encodes the packet
-func (pk *UseItemPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *UseItemPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk UseItemPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk UseItemPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

@@ -6,11 +6,11 @@ import "bytes"
 type InteractPacket struct{}
 
 //Encode encodes the packet
-func (pk *InteractPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *InteractPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk InteractPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk InteractPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

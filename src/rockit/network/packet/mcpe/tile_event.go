@@ -6,11 +6,11 @@ import "bytes"
 type TileEventPacket struct{}
 
 //Encode encodes the packet
-func (pk *TileEventPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *TileEventPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk TileEventPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk TileEventPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

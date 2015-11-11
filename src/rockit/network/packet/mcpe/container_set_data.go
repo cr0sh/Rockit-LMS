@@ -6,11 +6,11 @@ import "bytes"
 type ContainerSetDataPacket struct{}
 
 //Encode encodes the packet
-func (pk *ContainerSetDataPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *ContainerSetDataPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk ContainerSetDataPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk ContainerSetDataPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }

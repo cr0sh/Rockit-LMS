@@ -6,11 +6,11 @@ import "bytes"
 type AddPaintingPacket struct{}
 
 //Encode encodes the packet
-func (pk *AddPaintingPacket) Encode(fields map[string]interface{}) (buf []byte, err error) {
+func (pk *AddPaintingPacket) Encode(fields Field) (buf []byte, err error) {
 	return
 }
 
 //Decode decodes the packet
-func (pk AddPaintingPacket) Decode(buf *bytes.Buffer) (fields map[string]interface{}, err error) {
+func (pk AddPaintingPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
 	return
 }
