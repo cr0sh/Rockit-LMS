@@ -1,7 +1,11 @@
 package player
 
 import (
+	"bytes"
+	"compress/zlib"
+	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"net"
 	"rockit/network/packet/mcpe"
 	"rockit/util"
@@ -24,8 +28,34 @@ func (handler *Handler) HandlePacket(pk []byte) {
 		util.FromError(err, 1)
 		return
 	}
-	ppk.Decode()
-	switch pk[0] {
-
+	if fields, err := ppk.Decode(bytes.NewBuffer(pk[1:])); err == nil { //DO NOT PASS ENTIRE BUFFER. Skip head.
+		switch pk[0] {
+		case mcpe.BatchPacketHead:
+			input := bytes.NewBuffer(fields["payload"].([]byte))
+			r, err := zlib.NewReader(input)
+			if err != nil {
+				util.FromError(err, 0)
+				return
+			}
+			output := new(bytes.Buffer)
+			io.Copy(output, r)
+			r.Close()
+			buf := bytes.NewBuffer(output.Bytes())
+			maxlen := uint32(buf.Len())
+			offset := uint32(0)
+			for offset < maxlen {
+				tmp := binary.BigEndian.Uint32(buf.Next(4))
+				offset += 4
+				dpc := buf.Next(int(tmp))
+				offset += tmp
+				if dpc[0] == mcpe.BatchPacketHead {
+					util.Error("Invalid BatchPacket inside BatchPacket")
+					return
+				}
+				handler.HandlePacket(dpc)
+			}
+		}
+	} else {
+		util.FromError(err, 0)
 	}
 }
