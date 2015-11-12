@@ -3,38 +3,41 @@ package player
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/binary"
+	binutil "encoding/binary"
 	"encoding/hex"
 	"io"
 	"net"
+	"rockit/network/packet"
 	"rockit/network/packet/mcpe"
-	"rockit/util"
+	"rockit/util/binary"
+	"rockit/util/logger"
 )
 
 //Handler handles packets from player and controls player entity.
 type Handler struct {
-	Address  net.UDPAddr
-	entity   Player
-	username string
+	Address    net.UDPAddr
+	SendStream chan packet.Packet
+	entity     Player
+	username   string
 }
 
 //HandlePacket handles MCPE DataPacket from player
 func (handler *Handler) HandlePacket(pk []byte) {
-	util.Debug("Handling MCPE Packet: head 0x" + hex.EncodeToString([]byte{pk[0]}))
+	logger.Debug("Handling MCPE Packet: head 0x" + hex.EncodeToString([]byte{pk[0]}))
 	var ppk mcpe.Packet
 	var err error
 	ppk, err = mcpe.GetPacket(pk[0])
 	if err != nil {
-		util.FromError(err, 1)
+		logger.FromError(err, 1)
 		return
 	}
-	if fields, err := ppk.Decode(bytes.NewBuffer(pk[1:])); err == nil { //DO NOT PASS ENTIRE BUFFER. Skip head.
+	if fields, err := ppk.Decode(binary.Stream{pk[1:], 0}); err == nil { //DO NOT PASS ENTIRE BUFFER. Skip head.
 		switch pk[0] {
 		case mcpe.BatchPacketHead:
 			input := bytes.NewBuffer(fields["payload"].([]byte))
 			r, err := zlib.NewReader(input)
 			if err != nil {
-				util.FromError(err, 0)
+				logger.FromError(err, 0)
 				return
 			}
 			output := new(bytes.Buffer)
@@ -44,18 +47,32 @@ func (handler *Handler) HandlePacket(pk []byte) {
 			maxlen := uint32(buf.Len())
 			offset := uint32(0)
 			for offset < maxlen {
-				tmp := binary.BigEndian.Uint32(buf.Next(4))
+				tmp := binutil.BigEndian.Uint32(buf.Next(4))
 				offset += 4
 				dpc := buf.Next(int(tmp))
 				offset += tmp
 				if dpc[0] == mcpe.BatchPacketHead {
-					util.Error("Invalid BatchPacket inside BatchPacket")
+					logger.Error("Invalid BatchPacket inside BatchPacket")
 					return
 				}
 				handler.HandlePacket(dpc)
 			}
+		case mcpe.LoginPacketHead:
+			handler.username = fields["username"].(string)
+			handler.sendPacket(mcpe.PlayStatusPacketHead, map[string]interface{}{"status": uint32(mcpe.Success)})
+			return
 		}
 	} else {
-		util.FromError(err, 0)
+		logger.FromError(err, 0)
+	}
+}
+
+func (handler *Handler) sendPacket(head byte, fields mcpe.Field) {
+	if pk, err := mcpe.GetPacket(head); err == nil {
+		if buf, err := pk.Encode(fields); err == nil {
+			handler.SendStream <- packet.Packet{Buffer: bytes.NewBuffer(buf), Head: head, Address: handler.Address}
+		} else {
+			logger.FromError(err, 1)
+		}
 	}
 }

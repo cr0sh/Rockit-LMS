@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //DisconnectPacket is a packet implements <TODO>
 type DisconnectPacket struct{}
@@ -11,6 +11,6 @@ func (pk *DisconnectPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk DisconnectPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk DisconnectPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

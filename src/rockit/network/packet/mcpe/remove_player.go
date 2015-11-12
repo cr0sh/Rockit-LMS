@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //RemovePlayerPacket is a packet implements <TODO>
 type RemovePlayerPacket struct{}
@@ -11,6 +11,6 @@ func (pk *RemovePlayerPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk RemovePlayerPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk RemovePlayerPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

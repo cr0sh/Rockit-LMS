@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //LevelEventPacket is a packet implements <TODO>
 type LevelEventPacket struct{}
@@ -11,6 +11,6 @@ func (pk *LevelEventPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk LevelEventPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk LevelEventPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

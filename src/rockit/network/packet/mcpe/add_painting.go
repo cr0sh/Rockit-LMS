@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //AddPaintingPacket is a packet implements <TODO>
 type AddPaintingPacket struct{}
@@ -11,6 +11,6 @@ func (pk *AddPaintingPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk AddPaintingPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk AddPaintingPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

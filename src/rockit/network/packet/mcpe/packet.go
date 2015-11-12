@@ -2,14 +2,14 @@
 package mcpe
 
 import (
-	"bytes"
 	"fmt"
+	"rockit/util/binary"
 )
 
 //Packet is a data packet interface, for MCPE Clients
 type Packet interface {
 	Encode(Field) ([]byte, error)
-	Decode(*bytes.Buffer) (Field, error)
+	Decode(binary.Stream) (Field, error)
 }
 
 //Field is an alias of Field

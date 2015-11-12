@@ -1,12 +1,11 @@
 package mcpe
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
+	"rockit/util/binary"
 )
 
-//BatchPacket is a packet implements <TODO>
+//BatchPacket is a packet implements batch packet
 type BatchPacket struct{}
 
 //Encode encodes the packet
@@ -15,15 +14,14 @@ func (pk *BatchPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk BatchPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk BatchPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	fields = make(Field)
-	size := new(uint32)
-	binary.Read(buf, binary.BigEndian, size)
-	if *size == 0 {
+	size := buf.ReadInt()
+	if size == 0 {
 		err = fmt.Errorf("Invalid payload size: 0")
 		return
 	}
-	fields["payload"] = buf.Next(int(*size))
-	fields["size"] = *size
+	fields["payload"] = buf.Read(uint(size))
+	fields["size"] = size
 	return
 }

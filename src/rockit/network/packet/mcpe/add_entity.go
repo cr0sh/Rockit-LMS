@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //AddEntityPacket is a packet implements <TODO>
 type AddEntityPacket struct{}
@@ -11,6 +11,6 @@ func (pk *AddEntityPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk AddEntityPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk AddEntityPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

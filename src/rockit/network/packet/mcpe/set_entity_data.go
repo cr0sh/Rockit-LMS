@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetEntityDataPacket is a packet implements <TODO>
 type SetEntityDataPacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetEntityDataPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk SetEntityDataPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetEntityDataPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

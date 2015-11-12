@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //StartGamePacket is a packet implements <TODO>
 type StartGamePacket struct{}
@@ -11,6 +11,6 @@ func (pk *StartGamePacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk StartGamePacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk StartGamePacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

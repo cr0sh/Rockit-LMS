@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //MoveEntityPacket is a packet implements <TODO>
 type MoveEntityPacket struct{}
@@ -11,6 +11,6 @@ func (pk *MoveEntityPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk MoveEntityPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk MoveEntityPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

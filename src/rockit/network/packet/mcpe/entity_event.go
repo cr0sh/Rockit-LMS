@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //EntityEventPacket is a packet implements <TODO>
 type EntityEventPacket struct{}
@@ -11,6 +11,6 @@ func (pk *EntityEventPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk EntityEventPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk EntityEventPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

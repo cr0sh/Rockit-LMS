@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //TileEntityDataPacket is a packet implements <TODO>
 type TileEntityDataPacket struct{}
@@ -11,6 +11,6 @@ func (pk *TileEntityDataPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk TileEntityDataPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk TileEntityDataPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

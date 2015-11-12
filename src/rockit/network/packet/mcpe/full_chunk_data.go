@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //FullChunkDataPacket is a packet implements <TODO>
 type FullChunkDataPacket struct{}
@@ -11,6 +11,6 @@ func (pk *FullChunkDataPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk FullChunkDataPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk FullChunkDataPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

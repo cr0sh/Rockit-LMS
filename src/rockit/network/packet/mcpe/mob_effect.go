@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //MobEffectPacket is a packet implements <TODO>
 type MobEffectPacket struct{}
@@ -11,6 +11,6 @@ func (pk *MobEffectPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk MobEffectPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk MobEffectPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

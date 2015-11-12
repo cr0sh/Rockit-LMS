@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //AnimatePacket is a packet implements <TODO>
 type AnimatePacket struct{}
@@ -11,6 +11,6 @@ func (pk *AnimatePacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk AnimatePacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk AnimatePacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

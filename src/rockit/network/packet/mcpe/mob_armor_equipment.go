@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //MobArmorEquipmentPacket is a packet implements <TODO>
 type MobArmorEquipmentPacket struct{}
@@ -11,6 +11,6 @@ func (pk *MobArmorEquipmentPacket) Encode(fields Field) (buf []byte, err error) 
 }
 
 //Decode decodes the packet
-func (pk MobArmorEquipmentPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk MobArmorEquipmentPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

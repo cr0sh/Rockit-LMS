@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetSpawnPositionPacket is a packet implements <TODO>
 type SetSpawnPositionPacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetSpawnPositionPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk SetSpawnPositionPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetSpawnPositionPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

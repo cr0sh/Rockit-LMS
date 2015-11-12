@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"rockit/network/packet"
-	"rockit/util"
+	"rockit/util/logger"
 	"strconv"
 	"strings"
 )
@@ -24,7 +24,7 @@ var ServerID uint64
 
 //Open opens socket with given port
 func (s *Socket) Open(port int16) (err error) {
-	util.Verbose("Opening socket on 0.0.0.0:", port)
+	logger.Verbose("Opening socket on 0.0.0.0:", port)
 	s.Input = make(chan packet.Packet, 1024)
 	ServerAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:"+strconv.Itoa(int(port)))
 	if err != nil {
@@ -54,15 +54,15 @@ func (s *Socket) ProcessRecv() {
 					pk.Buffer = bytes.NewBuffer([]byte{})
 					pk.Head = 0x1c
 					if err := binary.Write(pk.Buffer, binary.BigEndian, PingID); err != nil {
-						util.FromError(err, 0)
+						logger.FromError(err, 0)
 						continue
 					}
 					if err := binary.Write(pk.Buffer, binary.BigEndian, ServerID); err != nil {
-						util.FromError(err, 0)
+						logger.FromError(err, 0)
 						continue
 					}
 					if err := binary.Write(pk.Buffer, binary.BigEndian, []byte(RaknetMagic)); err != nil {
-						util.FromError(err, 0)
+						logger.FromError(err, 0)
 						continue
 					}
 					pk.PutStr("MCPE;Rockit - using dev build now;34;0.12.1;0;20")

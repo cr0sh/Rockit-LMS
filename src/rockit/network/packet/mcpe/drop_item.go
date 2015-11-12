@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //DropItemPacket is a packet implements <TODO>
 type DropItemPacket struct{}
@@ -11,6 +11,6 @@ func (pk *DropItemPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk DropItemPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk DropItemPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //CraftingDataPacket is a packet implements <TODO>
 type CraftingDataPacket struct{}
@@ -11,6 +11,6 @@ func (pk *CraftingDataPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk CraftingDataPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk CraftingDataPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

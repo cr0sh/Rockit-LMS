@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //UpdateAttributesPacket is a packet implements <TODO>
 type UpdateAttributesPacket struct{}
@@ -11,6 +11,6 @@ func (pk *UpdateAttributesPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk UpdateAttributesPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk UpdateAttributesPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

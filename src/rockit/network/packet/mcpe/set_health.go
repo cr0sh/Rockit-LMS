@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetHealthPacket is a packet implements <TODO>
 type SetHealthPacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetHealthPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk SetHealthPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetHealthPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //ContainerOpenPacket is a packet implements <TODO>
 type ContainerOpenPacket struct{}
@@ -11,6 +11,6 @@ func (pk *ContainerOpenPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk ContainerOpenPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk ContainerOpenPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

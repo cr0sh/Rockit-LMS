@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //RespawnPacket is a packet implements <TODO>
 type RespawnPacket struct{}
@@ -11,6 +11,6 @@ func (pk *RespawnPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk RespawnPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk RespawnPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

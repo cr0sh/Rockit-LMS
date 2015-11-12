@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetDifficultyPacket is a packet implements <TODO>
 type SetDifficultyPacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetDifficultyPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk SetDifficultyPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetDifficultyPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //TelemetryEventPacket is a packet implements <TODO>
 type TelemetryEventPacket struct{}
@@ -11,6 +11,6 @@ func (pk *TelemetryEventPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk TelemetryEventPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk TelemetryEventPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

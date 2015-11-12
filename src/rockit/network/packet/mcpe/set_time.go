@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetTimePacket is a packet implements <TODO>
 type SetTimePacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetTimePacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk SetTimePacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetTimePacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //UseItemPacket is a packet implements <TODO>
 type UseItemPacket struct{}
@@ -11,6 +11,6 @@ func (pk *UseItemPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk UseItemPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk UseItemPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

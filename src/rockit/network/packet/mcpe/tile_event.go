@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //TileEventPacket is a packet implements <TODO>
 type TileEventPacket struct{}
@@ -11,6 +11,6 @@ func (pk *TileEventPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk TileEventPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk TileEventPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

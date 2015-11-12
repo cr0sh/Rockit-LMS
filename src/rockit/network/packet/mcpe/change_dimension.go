@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //ChangeDimensionPacket is a packet implements <TODO>
 type ChangeDimensionPacket struct{}
@@ -11,6 +11,6 @@ func (pk *ChangeDimensionPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk ChangeDimensionPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk ChangeDimensionPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

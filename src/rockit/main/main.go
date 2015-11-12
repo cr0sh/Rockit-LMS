@@ -7,7 +7,7 @@ import (
 	"os"
 	"rockit/network"
 	"rockit/server"
-	"rockit/util"
+	"rockit/util/logger"
 	"runtime"
 	"runtime/trace"
 )
@@ -18,7 +18,7 @@ func main() {
 	tr := flag.Bool("t", false, "prints execution trace log to Stdout - DO NOT USE NOW")
 	flag.Parse()
 	if *dbg {
-		util.SetLevel(0)
+		logger.SetLevel(0)
 	}
 	if *tr {
 		trace.Start(os.Stdout)

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //PlayerListPacket is a packet implements <TODO>
 type PlayerListPacket struct{}
@@ -11,6 +11,6 @@ func (pk *PlayerListPacket) Encode(fields Field) (buf []byte, err error) {
 }
 
 //Decode decodes the packet
-func (pk PlayerListPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk PlayerListPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //AdventureSettingsPacket is a packet implements <TODO>
 type AdventureSettingsPacket struct{}
@@ -11,6 +11,6 @@ func (pk *AdventureSettingsPacket) Encode(fields Field) (buf []byte, err error) 
 }
 
 //Decode decodes the packet
-func (pk AdventureSettingsPacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk AdventureSettingsPacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }

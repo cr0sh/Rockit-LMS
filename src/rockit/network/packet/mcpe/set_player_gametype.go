@@ -1,6 +1,6 @@
 package mcpe
 
-import "bytes"
+import "rockit/util/binary"
 
 //SetPlayerGametypePacket is a packet implements <TODO>
 type SetPlayerGametypePacket struct{}
@@ -11,6 +11,6 @@ func (pk *SetPlayerGametypePacket) Encode(fields Field) (buf []byte, err error) 
 }
 
 //Decode decodes the packet
-func (pk SetPlayerGametypePacket) Decode(buf *bytes.Buffer) (fields Field, err error) {
+func (pk SetPlayerGametypePacket) Decode(buf binary.Stream) (fields Field, err error) {
 	return
 }
