@@ -39,7 +39,7 @@ func ReadLTriad(buf *bytes.Buffer) (n uint32, err error) {
 
 //PutLTriad writes 3-byte LE Triad to buffer.
 func PutLTriad(i uint32, buf *bytes.Buffer) (err error) {
-	_, err = buf.Write([]byte{byte(i) & 0xff, byte(i >> 8), byte(i >> 16)})
+	_, err = buf.Write([]byte{byte(i >> 16), byte(i >> 8), byte(i)})
 	return
 }
 
