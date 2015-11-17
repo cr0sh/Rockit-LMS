@@ -26,7 +26,6 @@ func (server *Server) Start() {
 	network.ServerID = server.ServerID
 	server.playerList = make(map[uint]player.Player)
 	mcpe.Init()
-	go server.Socket.ProcessSend()
 	go server.Socket.ProcessRecv()
 	suspend()
 }

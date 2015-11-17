@@ -13,11 +13,11 @@ type DataPacket struct {
 	SeqNumber           uint32
 	Head                byte
 	EncapsulatedPackets []EncapsulatedPacket
-	Packets             []Packet
+	Packets             [][]byte
 }
 
-//NewDataPacket returns 'decoded' data packet from given normal packet.
-func NewDataPacket(pk Packet) (dp DataPacket, err error) {
+//FromPacket returns 'decoded' data packet from given normal packet.
+func FromPacket(pk Packet) (dp DataPacket, err error) {
 	dp.Buffer = bytes.NewBuffer(pk.Bytes())
 	dp.Head = pk.Head
 	err = dp.Decode()
@@ -25,11 +25,11 @@ func NewDataPacket(pk Packet) (dp DataPacket, err error) {
 }
 
 //Encode encodes Packets slice and SeqNumber to raw buffer.
-func (dp *DataPacket) Encode(head byte) Packet {
-	dp.Buffer.WriteByte(head)
+func (dp *DataPacket) Encode() Packet {
+	dp.Buffer.WriteByte(dp.Head)
 	PutLTriad(dp.SeqNumber, dp.Buffer)
 	for _, pk := range dp.Packets {
-		dp.Write(pk.Buffer.Bytes())
+		dp.Write(pk)
 	}
 	return Packet{Buffer: bytes.NewBuffer(dp.Bytes()[1:]), Head: dp.Bytes()[0], Address: *new(net.UDPAddr)}
 }
@@ -46,14 +46,24 @@ func (dp *DataPacket) Decode() (err error) {
 		off := 0
 		ep := new(EncapsulatedPacket)
 		ep.Buffer = bytes.NewBuffer(dp.Bytes())
-		var pk Packet
-		if pk, err = ep.Decapsulate(&off); err != nil {
+		var pk []byte
+		if err = ep.Decapsulate(&off); err != nil {
 			logger.Debug("Offset", off)
 			return Error{bytes.NewBuffer(append([]byte{dp.Head}, dp.Bytes()...)), err.Error()}
 		}
+		pk = ep.Payload
 		dp.Packets = append(dp.Packets, pk)
 		dp.EncapsulatedPackets = append(dp.EncapsulatedPackets, *ep)
 		offset += off
 	}
 	return nil
+}
+
+//TotalLen returns full length of packet
+func (dp *DataPacket) TotalLen() (length int) {
+	length = 4
+	for _, pk := range dp.Packets {
+		length += len(pk)
+	}
+	return
 }

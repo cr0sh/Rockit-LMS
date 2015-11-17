@@ -66,7 +66,7 @@ func (s *Socket) ProcessRecv() {
 						continue
 					}
 					pk.PutStr("MCPE;Rockit - using dev build now;34;0.12.1;0;20")
-					s.sendPacket(*pk)
+					s.ServerConn.WriteToUDP(pk.GetBytes(), addr)
 				} else {
 					fmt.Print("Error while decoding packet:", err)
 				}
@@ -78,17 +78,6 @@ func (s *Socket) ProcessRecv() {
 		}
 	}
 
-}
-
-func (s *Socket) sendPacket(pk packet.Packet) {
-	s.ServerConn.WriteToUDP(pk.GetBytes(), &pk.Address)
-}
-
-//ProcessSend gets a packet from Socket.Input channel and sends it
-func (s *Socket) ProcessSend() {
-	for snd := range s.Input {
-		s.sendPacket(snd)
-	}
 }
 
 func (s *Socket) sendToSession(pk *packet.Packet) {
@@ -104,7 +93,7 @@ func (s *Socket) getSession(address net.UDPAddr) *Session {
 	sess := &Session{
 		Address:    address,
 		RecvStream: make(chan packet.Packet, 1024),
-		SendStream: make(chan packet.Packet, 1024),
+		SendStream: make(chan []byte, 1024),
 		ServerID:   ServerID,
 		SessionID:  s.lastSID,
 	}
@@ -121,12 +110,12 @@ func (s *Socket) sendPackets() {
 			case pk, ok := <-sess.SendStream:
 				if !ok {
 					delete(s.Sessions, addr)
+					logger.Debug("Session removed")
 					continue
 				}
 				address := net.ParseIP(strings.Split(addr, ":")[0])
 				port, _ := strconv.Atoi(strings.Split(addr, ":")[1])
-				pk.Address = net.UDPAddr{IP: address, Port: port, Zone: ""}
-				s.Input <- pk
+				s.ServerConn.WriteToUDP(pk, &net.UDPAddr{IP: address, Port: port, Zone: ""})
 			default:
 				continue
 			}
